@@ -81,12 +81,3 @@ pub const Parser = struct {
         return error.UnexpectedEndOfInput;
     }
 };
-
-test "Parser" {
-    const allocator = std.testing.allocator;
-    var parser = Parser{};
-    const ast = try parser.parse(allocator, "\"hello\"");
-    const json = try std.json.stringifyAlloc(allocator, ast, .{});
-    defer allocator.free(json);
-    std.debug.print("{s}\n", .{json});
-}

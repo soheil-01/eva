@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const opts = .{ .target = target, .optimize = optimize };
+    const regex_mod = b.dependency("regex", opts).module("regex");
+
     const lib = b.addStaticLibrary(.{
         .name = "zig-rdp",
         // In this case the main source file is merely a path, however, in more
@@ -23,6 +26,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    lib.addModule("regex", regex_mod);
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
@@ -35,6 +39,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.addModule("regex", regex_mod);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

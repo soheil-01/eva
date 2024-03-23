@@ -1,4 +1,5 @@
 const std = @import("std");
+const Regex = @import("regex").Regex;
 
 pub const Tokenizer = struct {
     allocator: std.mem.Allocator,
@@ -8,6 +9,17 @@ pub const Tokenizer = struct {
     pub const TokenType = enum { Number, String };
 
     pub const Token = struct { type: TokenType, value: []const u8 };
+
+    const Spec = struct { re: []const u8, tokenType: ?TokenType };
+
+    const spec = [_]Spec{
+        .{ .re = "^\\s", .tokenType = null },
+        .{ .re = "^//.*", .tokenType = null },
+        .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null },
+        .{ .re = "^\\d+", .tokenType = .Number },
+        .{ .re = "^\"[^\"]*\"", .tokenType = .String },
+        .{ .re = "^'[^']*'", .tokenType = .String },
+    };
 
     pub fn init(allocator: std.mem.Allocator, string: []const u8) Tokenizer {
         return Tokenizer{ .allocator = allocator, .string = string, .cursor = 0 };
@@ -22,34 +34,28 @@ pub const Tokenizer = struct {
             return null;
         }
 
-        if (std.ascii.isDigit(self.string[self.cursor])) {
-            var number = std.ArrayList(u8).init(self.allocator);
+        const string = self.string[self.cursor..];
 
-            while (self.hasMoreTokens() and std.ascii.isDigit(self.string[self.cursor])) : (self.cursor += 1) {
-                try number.append(self.string[self.cursor]);
+        for (spec) |s| {
+            if (try self.match(s.re, string)) |tokenValue| {
+                if (s.tokenType) |tokenType| {
+                    return Token{ .type = tokenType, .value = tokenValue };
+                }
+                return self.getNextToken();
             }
-
-            const value = try number.toOwnedSlice();
-
-            return Token{ .type = .Number, .value = value };
         }
 
-        if (self.string[self.cursor] == '"') {
-            var s = std.ArrayList(u8).init(self.allocator);
+        return error.UnexpectedToken;
+    }
 
-            try s.append(self.string[self.cursor]);
-            self.cursor += 1;
+    fn match(self: *Tokenizer, re: []const u8, string: []const u8) !?[]const u8 {
+        var regex = try Regex.compile(self.allocator, re);
 
-            while (self.hasMoreTokens() and self.string[self.cursor] != '"') : (self.cursor += 1) {
-                try s.append(self.string[self.cursor]);
+        if (try regex.captures(string)) |captures| {
+            if (captures.sliceAt(0)) |matched| {
+                self.cursor += matched.len;
+                return matched;
             }
-
-            try s.append(self.string[self.cursor]);
-            self.cursor += 1;
-
-            const value = try s.toOwnedSlice();
-
-            return Token{ .type = .String, .value = value };
         }
 
         return null;
