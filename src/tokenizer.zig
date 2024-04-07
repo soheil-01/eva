@@ -6,20 +6,13 @@ pub const Tokenizer = struct {
     string: []const u8,
     cursor: usize,
 
-    pub const TokenType = enum { Number, String };
+    pub const TokenType = enum { Number, String, SemiColon };
 
     pub const Token = struct { type: TokenType, value: []const u8 };
 
     const Spec = struct { re: []const u8, tokenType: ?TokenType };
 
-    const spec = [_]Spec{
-        .{ .re = "^\\s", .tokenType = null },
-        .{ .re = "^//.*", .tokenType = null },
-        .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null },
-        .{ .re = "^\\d+", .tokenType = .Number },
-        .{ .re = "^\"[^\"]*\"", .tokenType = .String },
-        .{ .re = "^'[^']*'", .tokenType = .String },
-    };
+    const spec = [_]Spec{ .{ .re = "^\\s", .tokenType = null }, .{ .re = "^//.*", .tokenType = null }, .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null }, .{ .re = "^\\d+", .tokenType = .Number }, .{ .re = "^\"[^\"]*\"", .tokenType = .String }, .{ .re = "^'[^']*'", .tokenType = .String }, .{ .re = "^;", .tokenType = .SemiColon } };
 
     pub fn init(allocator: std.mem.Allocator, string: []const u8) Tokenizer {
         return Tokenizer{ .allocator = allocator, .string = string, .cursor = 0 };
