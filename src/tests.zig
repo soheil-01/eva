@@ -24,3 +24,13 @@ test "StatementList" {
         \\ 42;
     , "{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"StringLiteral\":{\"value\":\"hello\"}}}}},{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"NumericLiteral\":{\"value\":42}}}}}]}");
 }
+
+test "Block" {
+    try testParserOutput("{42; 'hello';}", "{\"body\":[{\"BlockStatement\":{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"NumericLiteral\":{\"value\":42}}}}},{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"StringLiteral\":{\"value\":\"hello\"}}}}}]}}]}");
+    try testParserOutput("{ }", "{\"body\":[{\"BlockStatement\":{\"body\":[]}}]}");
+    try testParserOutput("{ 42; { 'hello'; } }", "{\"body\":[{\"BlockStatement\":{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"NumericLiteral\":{\"value\":42}}}}},{\"BlockStatement\":{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"Literal\":{\"StringLiteral\":{\"value\":\"hello\"}}}}}]}}]}}]}");
+}
+
+test "Empty Statement" {
+    try testParserOutput(";", "{\"body\":[{\"EmptyStatement\":{}}]}");
+}

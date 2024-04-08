@@ -6,13 +6,14 @@ pub const Tokenizer = struct {
     string: []const u8,
     cursor: usize,
 
-    pub const TokenType = enum { Number, String, SemiColon };
+    const MatchError = error{ RegexCompileError, RegexCapturesError };
+    pub const Error = error{UnexpectedToken} || MatchError;
 
+    pub const TokenType = enum { Number, String, SemiColon, OpenBrace, CloseBrace };
     pub const Token = struct { type: TokenType, value: []const u8 };
 
     const Spec = struct { re: []const u8, tokenType: ?TokenType };
-
-    const spec = [_]Spec{ .{ .re = "^\\s", .tokenType = null }, .{ .re = "^//.*", .tokenType = null }, .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null }, .{ .re = "^\\d+", .tokenType = .Number }, .{ .re = "^\"[^\"]*\"", .tokenType = .String }, .{ .re = "^'[^']*'", .tokenType = .String }, .{ .re = "^;", .tokenType = .SemiColon } };
+    const spec = [_]Spec{ .{ .re = "^\\s", .tokenType = null }, .{ .re = "^//.*", .tokenType = null }, .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null }, .{ .re = "^\\d+", .tokenType = .Number }, .{ .re = "^\"[^\"]*\"", .tokenType = .String }, .{ .re = "^'[^']*'", .tokenType = .String }, .{ .re = "^;", .tokenType = .SemiColon }, .{ .re = "^\\{", .tokenType = .OpenBrace }, .{ .re = "^\\}", .tokenType = .CloseBrace } };
 
     pub fn init(allocator: std.mem.Allocator, string: []const u8) Tokenizer {
         return Tokenizer{ .allocator = allocator, .string = string, .cursor = 0 };
@@ -22,7 +23,7 @@ pub const Tokenizer = struct {
         return self.cursor < self.string.len;
     }
 
-    pub fn getNextToken(self: *Tokenizer) !?Token {
+    pub fn getNextToken(self: *Tokenizer) Error!?Token {
         if (!self.hasMoreTokens()) {
             return null;
         }
@@ -38,13 +39,13 @@ pub const Tokenizer = struct {
             }
         }
 
-        return error.UnexpectedToken;
+        return Error.UnexpectedToken;
     }
 
-    fn match(self: *Tokenizer, re: []const u8, string: []const u8) !?[]const u8 {
-        var regex = try Regex.compile(self.allocator, re);
+    fn match(self: *Tokenizer, re: []const u8, string: []const u8) MatchError!?[]const u8 {
+        var regex = Regex.compile(self.allocator, re) catch return MatchError.RegexCompileError;
 
-        if (try regex.captures(string)) |captures| {
+        if (regex.captures(string) catch return MatchError.RegexCapturesError) |captures| {
             if (captures.sliceAt(0)) |matched| {
                 self.cursor += matched.len;
                 return matched;
