@@ -11,10 +11,10 @@ pub const Parser = struct {
         return Parser{ .allocator = allocator };
     }
 
-    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput };
+    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
     // Parse a string into an AST.
-    pub fn parse(self: *Parser, string: []const u8) !Program {
+    pub fn parse(self: *Parser, string: []const u8) Error!Program {
         self.string = string;
         self.tokenizer = Tokenizer.init(self.allocator, string);
 
@@ -37,7 +37,7 @@ pub const Parser = struct {
     // : Statement
     // | StatementList Statement
     // ;
-    fn statementList(self: *Parser, stopLookahead: ?Tokenizer.TokenType) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)![]Statement {
+    fn statementList(self: *Parser, stopLookahead: ?Tokenizer.TokenType) Error![]Statement {
         var _statementList = std.ArrayList(Statement).init(self.allocator);
         while (self.lookahead) |lookahead| {
             if (lookahead.type == stopLookahead) {
@@ -56,7 +56,7 @@ pub const Parser = struct {
     //  | BlockStatement
     //  | EmptyStatement
     //  ;
-    fn statement(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)!Statement {
+    fn statement(self: *Parser) !Statement {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenBrace => Statement{ .BlockStatement = try self.blockStatement() },
@@ -73,7 +73,7 @@ pub const Parser = struct {
     // EmptyStatement
     // : ';'
     // ;
-    fn emptyStatement(self: *Parser) (Error || Tokenizer.Error)!EmptyStatement {
+    fn emptyStatement(self: *Parser) !EmptyStatement {
         _ = try self.eat(.SemiColon);
         return EmptyStatement{};
     }
@@ -83,7 +83,7 @@ pub const Parser = struct {
     // BlockStatement
     // '{' OptStatementList '}'
     // ;
-    fn blockStatement(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)!BlockStatement {
+    fn blockStatement(self: *Parser) !BlockStatement {
         _ = try self.eat(.OpenBrace);
         const body = try self.statementList(.CloseBrace);
         _ = try self.eat(.CloseBrace);
@@ -96,7 +96,7 @@ pub const Parser = struct {
     // ExpressionStatement
     //  : Expression ';'
     //  ;
-    fn expressionStatement(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!ExpressionStatement {
+    fn expressionStatement(self: *Parser) !ExpressionStatement {
         const _expression = try self.expression();
         _ = try self.eat(.SemiColon);
         return ExpressionStatement{ .expression = _expression };
@@ -107,7 +107,7 @@ pub const Parser = struct {
     // Expression
     //  : AdditiveExpression
     //  ;
-    fn expression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn expression(self: *Parser) Error!Expression {
         return self.additiveExpression();
     }
 
@@ -117,7 +117,7 @@ pub const Parser = struct {
     //  : MultiplicativeExpression
     //  | AdditiveExpression ADDITIVE_OPERATOR MultiplicativeExpression
     //  ;
-    fn additiveExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn additiveExpression(self: *Parser) !Expression {
         return self.binaryExpression(multiplicativeExpression, .AdditiveOperator);
     }
 
@@ -125,12 +125,12 @@ pub const Parser = struct {
     //  : PrimaryExpression
     //  | MultiplicativeExpression MULTIPLICATIVE_OPERATOR PrimaryExpression
     //  ;
-    fn multiplicativeExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn multiplicativeExpression(self: *Parser) !Expression {
         return self.binaryExpression(primaryExpression, .MultiplicativeOperator);
     }
 
     // Generic Binary Expression
-    fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression, comptime operatorType: Tokenizer.TokenType) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
         var left = try builderName(self);
         while (self.lookahead) |lookahead| {
             if (lookahead.type != operatorType) break;
@@ -151,7 +151,7 @@ pub const Parser = struct {
     //  : Literal
     //  | ParenthesizedExpression
     //  ;
-    fn primaryExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn primaryExpression(self: *Parser) !Expression {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenPran => self.parenthesizedExpression(),
@@ -165,7 +165,7 @@ pub const Parser = struct {
     // ParenthesizedExpression
     //  : '(' Expression ')'
     //  ;
-    fn parenthesizedExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+    fn parenthesizedExpression(self: *Parser) !Expression {
         _ = try self.eat(.OpenPran);
         const expr = try self.expression();
         _ = try self.eat(.ClosePran);
@@ -178,7 +178,7 @@ pub const Parser = struct {
     //  : NumericLiteral
     //  | StringLiteral
     //  ;
-    fn literal(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError)!Literal {
+    fn literal(self: *Parser) !Literal {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .Number => Literal{ .NumericLiteral = try self.numericLiteral() },
@@ -195,7 +195,7 @@ pub const Parser = struct {
     // StringLiteral
     //  : String
     //  ;
-    fn stringLiteral(self: *Parser) (Error || Tokenizer.Error)!StringLiteral {
+    fn stringLiteral(self: *Parser) !StringLiteral {
         const token = try self.eat(.String);
         return StringLiteral{ .value = token.value[1 .. token.value.len - 1] };
     }
@@ -205,13 +205,13 @@ pub const Parser = struct {
     // NumericLiteral
     // : Number
     // ;
-    fn numericLiteral(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError)!NumberLiteral {
+    fn numericLiteral(self: *Parser) !NumberLiteral {
         const token = try self.eat(.Number);
         const number = try std.fmt.parseUnsigned(u64, token.value, 10);
         return NumberLiteral{ .value = number };
     }
 
-    fn eat(self: *Parser, tokenType: Tokenizer.TokenType) (Error || Tokenizer.Error)!Tokenizer.Token {
+    fn eat(self: *Parser, tokenType: Tokenizer.TokenType) !Tokenizer.Token {
         if (self.lookahead) |token| {
             if (token.type != tokenType) {
                 return Error.UnexpectedToken;
