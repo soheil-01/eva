@@ -7,23 +7,11 @@ pub const Parser = struct {
     tokenizer: Tokenizer = undefined,
     lookahead: ?Tokenizer.Token = null,
 
-    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput };
-
-    const Program = struct { body: []Statement };
-
-    const NumberLiteral = struct { value: u64 };
-    const StringLiteral = struct { value: []const u8 };
-    const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral };
-
-    const Expression = union(enum) { Literal: Literal };
-    const ExpressionStatement = struct { expression: Expression };
-    const BlockStatement = struct { body: []Statement };
-    const EmptyStatement = struct {};
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement };
-
     pub fn init(allocator: std.mem.Allocator) Parser {
         return Parser{ .allocator = allocator };
     }
+
+    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput };
 
     // Parse a string into an AST.
     pub fn parse(self: *Parser, string: []const u8) !Program {
@@ -34,6 +22,8 @@ pub const Parser = struct {
 
         return self.program();
     }
+
+    const Program = struct { body: []Statement };
 
     // Main entry point.
     // Program
@@ -47,7 +37,7 @@ pub const Parser = struct {
     // : Statement
     // | StatementList Statement
     // ;
-    fn statementList(self: *Parser, stopLookahead: ?Tokenizer.TokenType) (Error || Tokenizer.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)![]Statement {
+    fn statementList(self: *Parser, stopLookahead: ?Tokenizer.TokenType) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)![]Statement {
         var _statementList = std.ArrayList(Statement).init(self.allocator);
         while (self.lookahead) |lookahead| {
             if (lookahead.type == stopLookahead) {
@@ -59,12 +49,14 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement };
+
     // Statement
     //  : ExpressionStatement
     //  | BlockStatement
     //  | EmptyStatement
     //  ;
-    fn statement(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)!Statement {
+    fn statement(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError || std.mem.Allocator.Error)!Statement {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenBrace => Statement{ .BlockStatement = try self.blockStatement() },
@@ -76,6 +68,8 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
+    const EmptyStatement = struct {};
+
     // EmptyStatement
     // : ';'
     // ;
@@ -83,6 +77,8 @@ pub const Parser = struct {
         _ = try self.eat(.SemiColon);
         return EmptyStatement{};
     }
+
+    const BlockStatement = struct { body: []Statement };
 
     // BlockStatement
     // '{' OptStatementList '}'
@@ -95,21 +91,88 @@ pub const Parser = struct {
         return BlockStatement{ .body = body };
     }
 
+    const ExpressionStatement = struct { expression: Expression };
+
     // ExpressionStatement
     //  : Expression ';'
     //  ;
-    fn expressionStatement(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError)!ExpressionStatement {
+    fn expressionStatement(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!ExpressionStatement {
         const _expression = try self.expression();
         _ = try self.eat(.SemiColon);
         return ExpressionStatement{ .expression = _expression };
     }
 
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression };
+
     // Expression
-    //  : Literal
+    //  : AdditiveExpression
     //  ;
-    fn expression(self: *Parser) (Error || Tokenizer.Error || std.fmt.ParseIntError)!Expression {
-        return Expression{ .Literal = try self.literal() };
+    fn expression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        return self.additiveExpression();
     }
+
+    const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+
+    // AdditiveExpression
+    //  : MultiplicativeExpression
+    //  | AdditiveExpression ADDITIVE_OPERATOR MultiplicativeExpression
+    //  ;
+    fn additiveExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        return self.binaryExpression(multiplicativeExpression, .AdditiveOperator);
+    }
+
+    // MultiplicativeExpression
+    //  : PrimaryExpression
+    //  | MultiplicativeExpression MULTIPLICATIVE_OPERATOR PrimaryExpression
+    //  ;
+    fn multiplicativeExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        return self.binaryExpression(primaryExpression, .MultiplicativeOperator);
+    }
+
+    // Generic Binary Expression
+    fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression, comptime operatorType: Tokenizer.TokenType) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        var left = try builderName(self);
+        while (self.lookahead) |lookahead| {
+            if (lookahead.type != operatorType) break;
+            const operator = try self.eat(operatorType);
+            var right = try builderName(self);
+            var binaryE = BinaryExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
+            binaryE.left.* = left;
+            binaryE.right.* = right;
+            left = Expression{ .BinaryExpression = binaryE };
+        }
+
+        return left;
+    }
+
+    const PrimaryExpression = union(enum) { Literal: Literal };
+
+    // PrimaryExpression
+    //  : Literal
+    //  | ParenthesizedExpression
+    //  ;
+    fn primaryExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        if (self.lookahead) |lookahead| {
+            return switch (lookahead.type) {
+                .OpenPran => self.parenthesizedExpression(),
+                else => Expression{ .PrimaryExpression = PrimaryExpression{ .Literal = try self.literal() } },
+            };
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
+
+    // ParenthesizedExpression
+    //  : '(' Expression ')'
+    //  ;
+    fn parenthesizedExpression(self: *Parser) (Error || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError)!Expression {
+        _ = try self.eat(.OpenPran);
+        const expr = try self.expression();
+        _ = try self.eat(.ClosePran);
+        return expr;
+    }
+
+    const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral };
 
     // Literal
     //  : NumericLiteral
@@ -127,6 +190,8 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
+    const StringLiteral = struct { value: []const u8 };
+
     // StringLiteral
     //  : String
     //  ;
@@ -134,6 +199,8 @@ pub const Parser = struct {
         const token = try self.eat(.String);
         return StringLiteral{ .value = token.value[1 .. token.value.len - 1] };
     }
+
+    const NumberLiteral = struct { value: u64 };
 
     // NumericLiteral
     // : Number
