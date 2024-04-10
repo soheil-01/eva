@@ -11,7 +11,7 @@ pub const Parser = struct {
         return Parser{ .allocator = allocator };
     }
 
-    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
+    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput, InvalidLeftHandSideInAssignmentExpression } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
     // Parse a string into an AST.
     pub fn parse(self: *Parser, string: []const u8) Error!Program {
@@ -102,16 +102,85 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression };
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression };
 
     // Expression
-    //  : AdditiveExpression
+    //  : AssignmentExpression
     //  ;
     fn expression(self: *Parser) Error!Expression {
-        return self.additiveExpression();
+        return self.assignmentExpression();
     }
 
-    const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+    const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+
+    // AssignmentExpression
+    //  : AdditiveExpression
+    //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
+    //  ;
+    fn assignmentExpression(self: *Parser) !Expression {
+        const left = try self.additiveExpression();
+
+        if (!(try self.isAssignmentOperator())) {
+            return left;
+        }
+
+        var assignmentE = AssignmentExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = try self.assignmentOperator() };
+        assignmentE.left.* = try checkValidAssignmentTarget(left);
+        assignmentE.right.* = try self.assignmentExpression();
+
+        return Expression{ .AssignmentExpression = assignmentE };
+    }
+
+    fn checkValidAssignmentTarget(node: Expression) !Expression {
+        if (node == .PrimaryExpression and node.PrimaryExpression == .LeftHandSideExpression and node.PrimaryExpression.LeftHandSideExpression == .Identifier) {
+            return node;
+        }
+
+        return Error.InvalidLeftHandSideInAssignmentExpression;
+    }
+
+    // Whether the lookeahead is an assignment operator.
+    fn isAssignmentOperator(self: *Parser) !bool {
+        if (self.lookahead) |lookahead| {
+            return lookahead.type == .SimpleAssign or lookahead.type == .ComplexAssign;
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
+
+    const LeftHandSideExpression = union(enum) { Identifier: Identifier };
+
+    // LeftHandSideExpression
+    //  : Identifier
+    //  ;
+    fn leftHandSideExpression(self: *Parser) !LeftHandSideExpression {
+        return LeftHandSideExpression{ .Identifier = try self.identifier() };
+    }
+
+    const Identifier = struct { name: []const u8 };
+
+    // Identifier
+    //  : IDENTIFIER
+    //  ;
+    fn identifier(self: *Parser) !Identifier {
+        const name = (try self.eat(.Identifier)).value;
+        return Identifier{ .name = name };
+    }
+
+    // AssignmentOperator
+    //  : SIMPLE_ASSIGN
+    //  | COMPLEX_ASSIGN
+    //  ;
+    fn assignmentOperator(self: *Parser) !Tokenizer.Token {
+        if (self.lookahead) |lookahead| {
+            if (lookahead.type == .SimpleAssign) {
+                return self.eat(.SimpleAssign);
+            }
+            return self.eat(.ComplexAssign);
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
 
     // AdditiveExpression
     //  : MultiplicativeExpression
@@ -129,6 +198,8 @@ pub const Parser = struct {
         return self.binaryExpression(primaryExpression, .MultiplicativeOperator);
     }
 
+    const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+
     // Generic Binary Expression
     fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
         var left = try builderName(self);
@@ -145,18 +216,31 @@ pub const Parser = struct {
         return left;
     }
 
-    const PrimaryExpression = union(enum) { Literal: Literal };
+    const PrimaryExpression = union(enum) { Literal: Literal, LeftHandSideExpression: LeftHandSideExpression };
 
     // PrimaryExpression
     //  : Literal
     //  | ParenthesizedExpression
+    //  | LeftHandSideExpression
     //  ;
     fn primaryExpression(self: *Parser) !Expression {
+        if (try self.isLiteral()) {
+            return Expression{ .PrimaryExpression = PrimaryExpression{ .Literal = try self.literal() } };
+        }
+
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenPran => self.parenthesizedExpression(),
-                else => Expression{ .PrimaryExpression = PrimaryExpression{ .Literal = try self.literal() } },
+                else => Expression{ .PrimaryExpression = PrimaryExpression{ .LeftHandSideExpression = try self.leftHandSideExpression() } },
             };
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
+
+    fn isLiteral(self: *Parser) !bool {
+        if (self.lookahead) |lookahead| {
+            return lookahead.type == .Number or lookahead.type == .String;
         }
 
         return Error.UnexpectedEndOfInput;
@@ -214,6 +298,7 @@ pub const Parser = struct {
     fn eat(self: *Parser, tokenType: Tokenizer.TokenType) !Tokenizer.Token {
         if (self.lookahead) |token| {
             if (token.type != tokenType) {
+                std.debug.print("{any} {any} \n", .{ token.type, tokenType });
                 return Error.UnexpectedToken;
             }
 
