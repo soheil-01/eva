@@ -46,25 +46,53 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement };
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement };
 
     // Statement
     //  : ExpressionStatement
     //  | BlockStatement
     //  | EmptyStatement
     //  | VariableStatement
+    //  | IfStatement
     //  ;
-    fn statement(self: *Parser) !Statement {
+    fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenBrace => Statement{ .BlockStatement = try self.blockStatement() },
                 .SemiColon => Statement{ .EmptyStatement = try self.emptyStatement() },
                 .Let => Statement{ .VariableStatement = try self.variableStatement() },
+                .If => Statement{ .IfStatement = try self.ifStatement() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    const IfStatement = struct { testE: Expression, consequent: *Statement, alternate: ?*Statement };
+
+    // IfStatement
+    //  : 'if' '(' Expression ')' Statement
+    //  | 'if' '(' Expression ')' Statement 'else' Statement
+    //  ;
+    fn ifStatement(self: *Parser) !IfStatement {
+        _ = try self.eat(.If);
+        _ = try self.eat(.OpenPran);
+        const testE = try self.expression();
+        _ = try self.eat(.ClosePran);
+
+        var _ifStatement = IfStatement{ .testE = testE, .consequent = try self.allocator.create(Statement), .alternate = try self.allocator.create(Statement) };
+
+        _ifStatement.consequent.* = try self.statement();
+
+        if (self.lookahead != null and self.lookahead.?.type == .Else) {
+            _ = try self.eat(.Else);
+            _ifStatement.alternate.?.* = try self.statement();
+        } else {
+            _ifStatement.alternate = null;
+        }
+
+        return _ifStatement;
     }
 
     const VariableStatement = struct { declarations: []VariableDeclaration };
@@ -104,7 +132,7 @@ pub const Parser = struct {
         const id = try self.identifier();
         var initializer: ?Expression = null;
 
-        if (self.lookahead.?.type != .SemiColon and self.lookahead.?.type != .Comma) {
+        if (self.lookahead != null and self.lookahead.?.type != .SemiColon and self.lookahead.?.type != .Comma) {
             initializer = try self.variableInitializer();
         }
 
@@ -151,6 +179,7 @@ pub const Parser = struct {
     fn expressionStatement(self: *Parser) !ExpressionStatement {
         const _expression = try self.expression();
         _ = try self.eat(.SemiColon);
+
         return ExpressionStatement{ .expression = _expression };
     }
 
@@ -165,13 +194,13 @@ pub const Parser = struct {
 
     const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
-    // TODO: Could the left-hand side expression be anything other than an identifer? If not, why not just return an Identifier?
+    // TODO: Could the left-hand side expression be anything other than an identifer? If not, why not just return an identifier?
     // AssignmentExpression
-    //  : AdditiveExpression
+    //  : RelationalExpression
     //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
     //  ;
     fn assignmentExpression(self: *Parser) !Expression {
-        const left = try self.additiveExpression();
+        const left = try self.relationalExpression();
 
         if (!(try self.isAssignmentOperator())) {
             return left;
@@ -217,6 +246,7 @@ pub const Parser = struct {
     //  ;
     fn identifier(self: *Parser) !Identifier {
         const name = (try self.eat(.Identifier)).value;
+
         return Identifier{ .name = name };
     }
 
@@ -233,6 +263,14 @@ pub const Parser = struct {
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    // RelationalExpression
+    //  : AdditiveExpression
+    //  | AdditiveExpression RELATIONAL_OPERATOR RelationalExpression
+    //  ;
+    fn relationalExpression(self: *Parser) !Expression {
+        return self.binaryExpression(additiveExpression, .RelationalOperator);
     }
 
     // AdditiveExpression
@@ -350,7 +388,6 @@ pub const Parser = struct {
     fn eat(self: *Parser, tokenType: Tokenizer.TokenType) !Tokenizer.Token {
         if (self.lookahead) |token| {
             if (token.type != tokenType) {
-                std.debug.print("{any} {any} \n", .{ token.type, tokenType });
                 return Error.UnexpectedToken;
             }
 
