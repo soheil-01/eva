@@ -39,33 +39,85 @@ pub const Parser = struct {
     // ;
     fn statementList(self: *Parser, stopLookahead: ?Tokenizer.TokenType) Error![]Statement {
         var _statementList = std.ArrayList(Statement).init(self.allocator);
-        while (self.lookahead) |lookahead| {
-            if (lookahead.type == stopLookahead) {
-                break;
-            }
+        while (self.lookahead != null and self.lookahead.?.type != stopLookahead) {
             try _statementList.append(try self.statement());
         }
 
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement };
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement };
 
     // Statement
     //  : ExpressionStatement
     //  | BlockStatement
     //  | EmptyStatement
+    //  | VariableStatement
     //  ;
     fn statement(self: *Parser) !Statement {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenBrace => Statement{ .BlockStatement = try self.blockStatement() },
                 .SemiColon => Statement{ .EmptyStatement = try self.emptyStatement() },
+                .Let => Statement{ .VariableStatement = try self.variableStatement() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    const VariableStatement = struct { declarations: []VariableDeclaration };
+
+    // VariableStatement
+    //  : 'let' VariableDeclarationList ';'
+    //  ;
+    fn variableStatement(self: *Parser) !VariableStatement {
+        _ = try self.eat(.Let);
+        const declarations = try self.variableDeclarationList();
+        _ = try self.eat(.SemiColon);
+
+        return VariableStatement{ .declarations = declarations };
+    }
+
+    // VariableDeclarationList
+    //  : VariableDeclaration
+    //  | VariableDeclarationList ',' VariableDeclaration
+    //  ;
+    fn variableDeclarationList(self: *Parser) ![]VariableDeclaration {
+        var declarations = std.ArrayList(VariableDeclaration).init(self.allocator);
+        try declarations.append(try self.variableDeclaration());
+        while (self.lookahead != null and self.lookahead.?.type == .Comma) {
+            _ = try self.eat(.Comma);
+            try declarations.append(try self.variableDeclaration());
+        }
+
+        return declarations.toOwnedSlice();
+    }
+
+    const VariableDeclaration = struct { id: Identifier, init: ?Expression };
+
+    // VariableDeclaration
+    //  : Identifier OptVariableInitializer
+    //  ;
+    fn variableDeclaration(self: *Parser) !VariableDeclaration {
+        const id = try self.identifier();
+        var initializer: ?Expression = null;
+
+        if (self.lookahead.?.type != .SemiColon and self.lookahead.?.type != .Comma) {
+            initializer = try self.variableInitializer();
+        }
+
+        return VariableDeclaration{ .id = id, .init = initializer };
+    }
+
+    // VariableInitializer
+    //  : SIMPLE_ASSIGN AssignmentExpression
+    //  ;
+    fn variableInitializer(self: *Parser) !Expression {
+        _ = try self.eat(.SimpleAssign);
+
+        return self.assignmentExpression();
     }
 
     const EmptyStatement = struct {};
@@ -113,6 +165,7 @@ pub const Parser = struct {
 
     const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
+    // TODO: Could the left-hand side expression be anything other than an identifer? If not, why not just return an Identifier?
     // AssignmentExpression
     //  : AdditiveExpression
     //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
@@ -203,8 +256,7 @@ pub const Parser = struct {
     // Generic Binary Expression
     fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
         var left = try builderName(self);
-        while (self.lookahead) |lookahead| {
-            if (lookahead.type != operatorType) break;
+        while (self.lookahead != null and self.lookahead.?.type == operatorType) {
             const operator = try self.eat(operatorType);
             var right = try builderName(self);
             var binaryE = BinaryExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };

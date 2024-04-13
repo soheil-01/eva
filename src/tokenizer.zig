@@ -9,11 +9,11 @@ pub const Tokenizer = struct {
     const MatchError = error{ RegexCompileError, RegexCapturesError };
     pub const Error = error{UnexpectedToken} || MatchError;
 
-    pub const TokenType = enum { Number, String, SemiColon, OpenBrace, CloseBrace, OpenPran, ClosePran, AdditiveOperator, MultiplicativeOperator, Identifier, SimpleAssign, ComplexAssign };
+    pub const TokenType = enum { Number, String, SemiColon, OpenBrace, CloseBrace, OpenPran, ClosePran, AdditiveOperator, MultiplicativeOperator, Identifier, SimpleAssign, ComplexAssign, Let, Comma };
     pub const Token = struct { type: TokenType, value: []const u8 };
 
     const Spec = struct { re: []const u8, tokenType: ?TokenType };
-    const spec = [_]Spec{ .{ .re = "^\\s", .tokenType = null }, .{ .re = "^//.*", .tokenType = null }, .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null }, .{ .re = "^\\d+", .tokenType = .Number }, .{ .re = "^\\w+", .tokenType = .Identifier }, .{ .re = "^=", .tokenType = .SimpleAssign }, .{ .re = "^[+\\-\\*/]=", .tokenType = .ComplexAssign }, .{ .re = "^\"[^\"]*\"", .tokenType = .String }, .{ .re = "^'[^']*'", .tokenType = .String }, .{ .re = "^;", .tokenType = .SemiColon }, .{ .re = "^\\{", .tokenType = .OpenBrace }, .{ .re = "^\\}", .tokenType = .CloseBrace }, .{ .re = "^\\(", .tokenType = .OpenPran }, .{ .re = "^\\)", .tokenType = .ClosePran }, .{ .re = "^[+\\-]", .tokenType = .AdditiveOperator }, .{ .re = "^[\\*/]", .tokenType = .MultiplicativeOperator } };
+    const spec = [_]Spec{ .{ .re = "^\\s", .tokenType = null }, .{ .re = "^//.*", .tokenType = null }, .{ .re = "^/\\*[\\s\\S]*?\\*/", .tokenType = null }, .{ .re = "^,", .tokenType = .Comma }, .{ .re = "^\\blet\\b", .tokenType = .Let }, .{ .re = "^\\d+", .tokenType = .Number }, .{ .re = "^\\w+", .tokenType = .Identifier }, .{ .re = "^=", .tokenType = .SimpleAssign }, .{ .re = "^[+\\-\\*/]=", .tokenType = .ComplexAssign }, .{ .re = "^\"[^\"]*\"", .tokenType = .String }, .{ .re = "^'[^']*'", .tokenType = .String }, .{ .re = "^;", .tokenType = .SemiColon }, .{ .re = "^\\{", .tokenType = .OpenBrace }, .{ .re = "^\\}", .tokenType = .CloseBrace }, .{ .re = "^\\(", .tokenType = .OpenPran }, .{ .re = "^\\)", .tokenType = .ClosePran }, .{ .re = "^[+\\-]", .tokenType = .AdditiveOperator }, .{ .re = "^[\\*/]", .tokenType = .MultiplicativeOperator } };
 
     pub fn init(allocator: std.mem.Allocator, string: []const u8) Tokenizer {
         return Tokenizer{ .allocator = allocator, .string = string, .cursor = 0 };

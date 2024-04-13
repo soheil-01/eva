@@ -48,3 +48,9 @@ test "Assignment" {
     try testParserOutput("x = y = 42;", "{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"AssignmentExpression\":{\"operator\":{\"type\":\"SimpleAssign\",\"value\":\"=\"},\"left\":{\"PrimaryExpression\":{\"LeftHandSideExpression\":{\"Identifier\":{\"name\":\"x\"}}}},\"right\":{\"AssignmentExpression\":{\"operator\":{\"type\":\"SimpleAssign\",\"value\":\"=\"},\"left\":{\"PrimaryExpression\":{\"LeftHandSideExpression\":{\"Identifier\":{\"name\":\"y\"}}}},\"right\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":42}}}}}}}}}}]}");
     try testParserOutput("x += 2;", "{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"AssignmentExpression\":{\"operator\":{\"type\":\"ComplexAssign\",\"value\":\"+=\"},\"left\":{\"PrimaryExpression\":{\"LeftHandSideExpression\":{\"Identifier\":{\"name\":\"x\"}}}},\"right\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":2}}}}}}}}]}");
 }
+
+test "Variable" {
+    try testParserOutput("let x = 42;", "{\"body\":[{\"VariableStatement\":{\"declarations\":[{\"id\":{\"name\":\"x\"},\"init\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":42}}}}}]}}]}");
+    try testParserOutput("let x;", "{\"body\":[{\"VariableStatement\":{\"declarations\":[{\"id\":{\"name\":\"x\"},\"init\":null}]}}]}");
+    try testParserOutput("let x,y=10;", "{\"body\":[{\"VariableStatement\":{\"declarations\":[{\"id\":{\"name\":\"x\"},\"init\":null},{\"id\":{\"name\":\"y\"},\"init\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":10}}}}}]}}]}");
+}
