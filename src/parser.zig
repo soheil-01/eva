@@ -183,7 +183,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression };
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -196,11 +196,11 @@ pub const Parser = struct {
 
     // TODO: Could the left-hand side expression be anything other than an identifer? If not, why not just return an identifier?
     // AssignmentExpression
-    //  : RelationalExpression
+    //  : LogicalORExpression
     //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
     //  ;
     fn assignmentExpression(self: *Parser) !Expression {
-        const left = try self.relationalExpression();
+        const left = try self.logicalOrExpression();
 
         if (!(try self.isAssignmentOperator())) {
             return left;
@@ -265,6 +265,30 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
+    // LogicalORExpression
+    //  : EqualityExpression
+    //  | EqualityExpression LOGICAL_OR LogicalORExpression
+    //  ;
+    fn logicalOrExpression(self: *Parser) !Expression {
+        return self.logicalExpression(logicalAndExpression, .LogicalOr);
+    }
+
+    // LogicalANDExpression
+    //  : EqualityExpression
+    //  | EqualityExpression LOGICAL_AND LogicalANDExpression
+    //  ;
+    fn logicalAndExpression(self: *Parser) !Expression {
+        return self.logicalExpression(equalityExpression, .LogicalAnd);
+    }
+
+    // EqualityExpression
+    //  : RelationalExpression
+    //  | RelationalExpression EQUALITY_OPERATOR EqualityExpression
+    //  ;
+    fn equalityExpression(self: *Parser) !Expression {
+        return self.binaryExpression(relationalExpression, .EqualityOperator);
+    }
+
     // RelationalExpression
     //  : AdditiveExpression
     //  | AdditiveExpression RELATIONAL_OPERATOR RelationalExpression
@@ -306,6 +330,23 @@ pub const Parser = struct {
         return left;
     }
 
+    const LogicalExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+
+    // Generic Logical Expression
+    fn logicalExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
+        var left = try builderName(self);
+        while (self.lookahead != null and self.lookahead.?.type == operatorType) {
+            const operator = try self.eat(operatorType);
+            var right = try builderName(self);
+            var logicalE = LogicalExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
+            logicalE.left.* = left;
+            logicalE.right.* = right;
+            left = Expression{ .LogicalExpression = logicalE };
+        }
+
+        return left;
+    }
+
     const PrimaryExpression = union(enum) { Literal: Literal, LeftHandSideExpression: LeftHandSideExpression };
 
     // PrimaryExpression
@@ -330,7 +371,7 @@ pub const Parser = struct {
 
     fn isLiteral(self: *Parser) !bool {
         if (self.lookahead) |lookahead| {
-            return lookahead.type == .Number or lookahead.type == .String;
+            return lookahead.type == .Number or lookahead.type == .String or lookahead.type == .True or lookahead.type == .False or lookahead.type == .Null;
         }
 
         return Error.UnexpectedEndOfInput;
@@ -346,22 +387,50 @@ pub const Parser = struct {
         return expr;
     }
 
-    const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral };
+    const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral, BooleanLiteral: BooleanLiteral, NullLiteral: NullLiteral };
 
     // Literal
     //  : NumericLiteral
     //  | StringLiteral
+    //  | BooleanLiteral
+    //  | NullLiteral
     //  ;
     fn literal(self: *Parser) !Literal {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .Number => Literal{ .NumericLiteral = try self.numericLiteral() },
                 .String => Literal{ .StringLiteral = try self.stringLiteral() },
+                .True => Literal{ .BooleanLiteral = try self.booleanLiteral(true) },
+                .False => Literal{ .BooleanLiteral = try self.booleanLiteral(false) },
+                .Null => Literal{ .NullLiteral = try self.nullLiteral() },
                 else => Error.UnexpectedToken,
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    const BooleanLiteral = struct { value: bool };
+
+    // BooleanLiteral
+    //  : 'true'
+    //  | 'false'
+    //  ;
+    fn booleanLiteral(self: *Parser, value: bool) !BooleanLiteral {
+        _ = try self.eat(if (value) .True else .False);
+
+        return BooleanLiteral{ .value = value };
+    }
+
+    const NullLiteral = struct {};
+
+    // NullLiteral
+    //  : 'null'
+    //  ;
+    fn nullLiteral(self: *Parser) !NullLiteral {
+        _ = try self.eat(.Null);
+
+        return NullLiteral{};
     }
 
     const StringLiteral = struct { value: []const u8 };
