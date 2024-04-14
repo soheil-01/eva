@@ -46,7 +46,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement };
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement };
 
     // Statement
     //  : ExpressionStatement
@@ -54,6 +54,7 @@ pub const Parser = struct {
     //  | EmptyStatement
     //  | VariableStatement
     //  | IfStatement
+    //  | IterationStatement
     //  ;
     fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
@@ -62,11 +63,112 @@ pub const Parser = struct {
                 .SemiColon => Statement{ .EmptyStatement = try self.emptyStatement() },
                 .Let => Statement{ .VariableStatement = try self.variableStatement() },
                 .If => Statement{ .IfStatement = try self.ifStatement() },
+                .While, .Do, .For => self.iterationStatement(),
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    // IterationStatement
+    //  : WhileStatement
+    //  | DoWhileStatement
+    //  | ForStatement
+    //  ;
+    fn iterationStatement(self: *Parser) !Statement {
+        if (self.lookahead) |lookahead| {
+            return switch (lookahead.type) {
+                .While => Statement{ .WhileStatement = try self.whileStatement() },
+                .Do => Statement{ .DoWhileStatement = try self.doWhileStatement() },
+                .For => Statement{ .ForStatement = try self.forStatement() },
+                else => Error.UnexpectedToken,
+            };
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
+
+    const WhileStatement = struct { testE: Expression, body: *Statement };
+
+    // WhileStatement
+    //  : 'while' '(' Expression ')' Statement
+    //  ;
+    fn whileStatement(self: *Parser) !WhileStatement {
+        _ = try self.eat(.While);
+        _ = try self.eat(.OpenPran);
+
+        const testE = try self.expression();
+        _ = try self.eat(.ClosePran);
+
+        var _whileStatement = WhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
+        _whileStatement.body.* = try self.statement();
+
+        return _whileStatement;
+    }
+
+    const DoWhileStatement = struct { testE: Expression, body: *Statement };
+
+    // DoWhileStatement
+    //  : 'do' Statement 'while' '(' Expression ')' ';'
+    //  ;
+    fn doWhileStatement(self: *Parser) !DoWhileStatement {
+        _ = try self.eat(.Do);
+
+        const body = try self.statement();
+
+        _ = try self.eat(.While);
+        _ = try self.eat(.OpenPran);
+
+        const testE = try self.expression();
+
+        _ = try self.eat(.ClosePran);
+        _ = try self.eat(.SemiColon);
+
+        var _doWhileStatement = DoWhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
+        _doWhileStatement.body.* = body;
+
+        return _doWhileStatement;
+    }
+
+    const ForStatement = struct { init: ?ForStatementInit, testE: ?Expression, update: ?Expression, body: *Statement };
+
+    // ForStatement
+    //  : 'for' '(' OptForStatementInit ';' OptExpression ';' OptExpression ')' Statement
+    //  ;
+    fn forStatement(self: *Parser) !ForStatement {
+        _ = try self.eat(.For);
+        _ = try self.eat(.OpenPran);
+
+        const initS: ?ForStatementInit = if (self.lookahead.?.type != .SemiColon) try self.forStatementInit() else null;
+        _ = try self.eat(.SemiColon);
+
+        const testE: ?Expression = if (self.lookahead.?.type != .SemiColon) try self.expression() else null;
+        _ = try self.eat(.SemiColon);
+
+        const update: ?Expression = if (self.lookahead.?.type != .ClosePran) try self.expression() else null;
+        _ = try self.eat(.ClosePran);
+
+        const body = try self.statement();
+
+        var _forStatement = ForStatement{ .init = initS, .testE = testE, .update = update, .body = try self.allocator.create(Statement) };
+        _forStatement.body.* = body;
+
+        return _forStatement;
+    }
+
+    const ForStatementInit = union(enum) { VariableStatement: VariableStatement, Expression: Expression };
+
+    // ForStatementInit
+    //  : VariableStatementInit
+    //  | Expression
+    //  ;
+    fn forStatementInit(self: *Parser) !ForStatementInit {
+        if (self.lookahead.?.type == .Let) {
+            return ForStatementInit{ .VariableStatement = try self.variableStatementInit() };
+        }
+
+        return ForStatementInit{ .Expression = try self.expression() };
     }
 
     const IfStatement = struct { testE: Expression, consequent: *Statement, alternate: ?*Statement };
@@ -97,15 +199,24 @@ pub const Parser = struct {
 
     const VariableStatement = struct { declarations: []VariableDeclaration };
 
-    // VariableStatement
-    //  : 'let' VariableDeclarationList ';'
+    // VariableStatementInit
+    //  : 'let' VariableDeclarationList
     //  ;
-    fn variableStatement(self: *Parser) !VariableStatement {
+    fn variableStatementInit(self: *Parser) !VariableStatement {
         _ = try self.eat(.Let);
         const declarations = try self.variableDeclarationList();
-        _ = try self.eat(.SemiColon);
 
         return VariableStatement{ .declarations = declarations };
+    }
+
+    // VariableStatement
+    //  : VariableStatementInit ';'
+    //  ;
+    fn variableStatement(self: *Parser) !VariableStatement {
+        const _variableStatement = try self.variableStatementInit();
+        _ = try self.eat(.SemiColon);
+
+        return _variableStatement;
     }
 
     // VariableDeclarationList
