@@ -183,7 +183,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression };
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -194,7 +194,6 @@ pub const Parser = struct {
 
     const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
-    // TODO: Could the left-hand side expression be anything other than an identifer? If not, why not just return an identifier?
     // AssignmentExpression
     //  : LogicalORExpression
     //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
@@ -214,7 +213,7 @@ pub const Parser = struct {
     }
 
     fn checkValidAssignmentTarget(node: Expression) !Expression {
-        if (node == .PrimaryExpression and node.PrimaryExpression == .LeftHandSideExpression and node.PrimaryExpression.LeftHandSideExpression == .Identifier) {
+        if (node == .PrimaryExpression and node.PrimaryExpression == .Identifier) {
             return node;
         }
 
@@ -228,15 +227,6 @@ pub const Parser = struct {
         }
 
         return Error.UnexpectedEndOfInput;
-    }
-
-    const LeftHandSideExpression = union(enum) { Identifier: Identifier };
-
-    // LeftHandSideExpression
-    //  : Identifier
-    //  ;
-    fn leftHandSideExpression(self: *Parser) !LeftHandSideExpression {
-        return LeftHandSideExpression{ .Identifier = try self.identifier() };
     }
 
     const Identifier = struct { name: []const u8 };
@@ -306,11 +296,11 @@ pub const Parser = struct {
     }
 
     // MultiplicativeExpression
-    //  : PrimaryExpression
-    //  | MultiplicativeExpression MULTIPLICATIVE_OPERATOR PrimaryExpression
+    //  : UnaryExpression
+    //  | MultiplicativeExpression MULTIPLICATIVE_OPERATOR UnaryExpression
     //  ;
     fn multiplicativeExpression(self: *Parser) !Expression {
-        return self.binaryExpression(primaryExpression, .MultiplicativeOperator);
+        return self.binaryExpression(unaryExpression, .MultiplicativeOperator);
     }
 
     const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
@@ -347,12 +337,47 @@ pub const Parser = struct {
         return left;
     }
 
-    const PrimaryExpression = union(enum) { Literal: Literal, LeftHandSideExpression: LeftHandSideExpression };
+    const UnaryExpression = struct { operator: Tokenizer.Token, argument: *Expression };
+
+    // UnaryExpression
+    //  : LeftHandSideExpression
+    //  | ADDITIVE_OPERATOR UnaryExpression
+    //  | LOGICAL_NOT UnaryExpression
+    //  ;
+    fn unaryExpression(self: *Parser) !Expression {
+        var operator: ?Tokenizer.Token = null;
+        if (self.lookahead) |lookahead| {
+            switch (lookahead.type) {
+                .AdditiveOperator => operator = try self.eat(.AdditiveOperator),
+                .LogicalNot => operator = try self.eat(.LogicalNot),
+                else => {},
+            }
+            if (operator != null) {
+                const unaryE = UnaryExpression{ .operator = operator.?, .argument = try self.allocator.create(Expression) };
+                unaryE.argument.* = try self.unaryExpression();
+
+                return Expression{ .UnaryExpression = unaryE };
+            }
+
+            return self.leftHandSideExpression();
+        }
+
+        return Error.UnexpectedEndOfInput;
+    }
+
+    // LeftHandSideExpression
+    //  : PrimaryExpression
+    //  ;
+    fn leftHandSideExpression(self: *Parser) !Expression {
+        return self.primaryExpression();
+    }
+
+    const PrimaryExpression = union(enum) { Literal: Literal, Identifier: Identifier };
 
     // PrimaryExpression
     //  : Literal
     //  | ParenthesizedExpression
-    //  | LeftHandSideExpression
+    //  | Identifier
     //  ;
     fn primaryExpression(self: *Parser) !Expression {
         if (try self.isLiteral()) {
@@ -362,7 +387,8 @@ pub const Parser = struct {
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenPran => self.parenthesizedExpression(),
-                else => Expression{ .PrimaryExpression = PrimaryExpression{ .LeftHandSideExpression = try self.leftHandSideExpression() } },
+                .Identifier => Expression{ .PrimaryExpression = .{ .Identifier = try self.identifier() } },
+                else => Error.UnexpectedToken,
             };
         }
 
@@ -384,6 +410,7 @@ pub const Parser = struct {
         _ = try self.eat(.OpenPran);
         const expr = try self.expression();
         _ = try self.eat(.ClosePran);
+
         return expr;
     }
 
