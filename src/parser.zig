@@ -46,7 +46,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement };
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement };
 
     // Statement
     //  : ExpressionStatement
@@ -55,6 +55,8 @@ pub const Parser = struct {
     //  | VariableStatement
     //  | IfStatement
     //  | IterationStatement
+    //  | FunctionDeclaration
+    //  | ReturnStatement
     //  ;
     fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
@@ -64,11 +66,61 @@ pub const Parser = struct {
                 .Let => Statement{ .VariableStatement = try self.variableStatement() },
                 .If => Statement{ .IfStatement = try self.ifStatement() },
                 .While, .Do, .For => self.iterationStatement(),
+                .Def => Statement{ .FunctionDeclaration = try self.functionDeclaration() },
+                .Return => Statement{ .ReturnStatement = try self.returnStatement() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    const FunctionDeclaration = struct { name: Identifier, params: []Identifier, body: BlockStatement };
+
+    // FunctionDeclaration
+    //  : 'def' Identifier '(' OptFormalParameterList ')' BlockStatement
+    //  ;
+    fn functionDeclaration(self: *Parser) !FunctionDeclaration {
+        _ = try self.eat(.Def);
+        const name = try self.identifier();
+
+        _ = try self.eat(.OpenPran);
+
+        const params: []Identifier = if (self.lookahead.?.type != .ClosePran) try self.formalParameterList() else &[_]Identifier{};
+
+        _ = try self.eat(.ClosePran);
+        const body = try self.blockStatement();
+
+        return FunctionDeclaration{ .name = name, .params = params, .body = body };
+    }
+
+    // FormalParameterList
+    //  : Identifer
+    //  | FormalParameterList ',' Identifier
+    //  ;
+    fn formalParameterList(self: *Parser) ![]Identifier {
+        var params = std.ArrayList(Identifier).init(self.allocator);
+        try params.append(try self.identifier());
+
+        while (self.lookahead.?.type == .Comma) {
+            _ = try self.eat(.Comma);
+            try params.append(try self.identifier());
+        }
+
+        return params.toOwnedSlice();
+    }
+
+    const ReturnStatement = struct { argument: ?Expression };
+
+    // ReturnStatement
+    //  : 'return' OptExpression ';'
+    //  ;
+    fn returnStatement(self: *Parser) !ReturnStatement {
+        _ = try self.eat(.Return);
+        const argument: ?Expression = if (self.lookahead.?.type != .SemiColon) try self.expression() else null;
+        _ = try self.eat(.SemiColon);
+
+        return ReturnStatement{ .argument = argument };
     }
 
     // IterationStatement

@@ -94,3 +94,8 @@ test "For" {
     try testParserOutput("for(;;){}", "{\"body\":[{\"ForStatement\":{\"init\":null,\"testE\":null,\"update\":null,\"body\":{\"BlockStatement\":{\"body\":[]}}}}]}");
     try testParserOutput("for(x = 1;;){}", "{\"body\":[{\"ForStatement\":{\"init\":{\"Expression\":{\"AssignmentExpression\":{\"operator\":{\"type\":\"SimpleAssign\",\"value\":\"=\"},\"left\":{\"PrimaryExpression\":{\"Identifier\":{\"name\":\"x\"}}},\"right\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":1}}}}}}},\"testE\":null,\"update\":null,\"body\":{\"BlockStatement\":{\"body\":[]}}}}]}");
 }
+
+test "Function Declaration" {
+    try testParserOutput("def test(x,y){x += 1; return x;}", "{\"body\":[{\"FunctionDeclaration\":{\"name\":{\"name\":\"test\"},\"params\":[{\"name\":\"x\"},{\"name\":\"y\"}],\"body\":{\"body\":[{\"ExpressionStatement\":{\"expression\":{\"AssignmentExpression\":{\"operator\":{\"type\":\"ComplexAssign\",\"value\":\"+=\"},\"left\":{\"PrimaryExpression\":{\"Identifier\":{\"name\":\"x\"}}},\"right\":{\"PrimaryExpression\":{\"Literal\":{\"NumericLiteral\":{\"value\":1}}}}}}}},{\"ReturnStatement\":{\"argument\":{\"PrimaryExpression\":{\"Identifier\":{\"name\":\"x\"}}}}}]}}}]}");
+    try testParserOutput("def test(){return;}", "{\"body\":[{\"FunctionDeclaration\":{\"name\":{\"name\":\"test\"},\"params\":[],\"body\":{\"body\":[{\"ReturnStatement\":{\"argument\":null}}]}}}]}");
+}
