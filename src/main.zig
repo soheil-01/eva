@@ -5,7 +5,7 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     var parser = Parser.init(allocator);
-    const ast = try parser.parse("def test(){return;}");
+    const ast = try parser.parse("a.b.c[1+2];");
 
     const string = try std.json.stringifyAlloc(allocator, ast, .{});
     std.debug.print("{s}\n", .{string});

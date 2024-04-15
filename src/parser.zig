@@ -346,7 +346,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression };
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -359,7 +359,7 @@ pub const Parser = struct {
 
     // AssignmentExpression
     //  : LogicalORExpression
-    //  | LeftHandSideExpression AssignmentOperator AssignmentExpression
+    //  | LogicalORExpression AssignmentOperator AssignmentExpression
     //  ;
     fn assignmentExpression(self: *Parser) !Expression {
         const left = try self.logicalOrExpression();
@@ -529,10 +529,46 @@ pub const Parser = struct {
     }
 
     // LeftHandSideExpression
-    //  : PrimaryExpression
+    //  : MemberExpression
     //  ;
     fn leftHandSideExpression(self: *Parser) !Expression {
-        return self.primaryExpression();
+        return self.memberExpression();
+    }
+
+    const MemberExpressionProperty = union(enum) { Expression: *Expression, Identifier: Identifier };
+    const MemberExpression = struct { computed: bool, object: *Expression, property: MemberExpressionProperty };
+
+    // MemberExpression
+    //  : PrimaryExpression
+    //  | MemberExpression '.' Identifier
+    //  | MemberExpression '[' Expression ']'
+    //  ;
+    fn memberExpression(self: *Parser) !Expression {
+        var object = try self.primaryExpression();
+
+        while (self.lookahead.?.type == .Dot or self.lookahead.?.type == .OpenBracket) {
+            // MemberExpression '.' Identifier
+            if (self.lookahead.?.type == .Dot) {
+                _ = try self.eat(.Dot);
+                const property = MemberExpressionProperty{ .Identifier = try self.identifier() };
+                var _memberExpression = MemberExpression{ .computed = false, .object = try self.allocator.create(Expression), .property = property };
+                _memberExpression.object.* = object;
+                object = Expression{ .MemberExpression = _memberExpression };
+            }
+
+            // MemberExpression '[' Expression ']'
+            if (self.lookahead.?.type == .OpenBracket) {
+                _ = try self.eat(.OpenBracket);
+                var property = MemberExpressionProperty{ .Expression = try self.allocator.create(Expression) };
+                property.Expression.* = try self.expression();
+                _ = try self.eat(.CloseBracket);
+                var _memberExpression = MemberExpression{ .computed = true, .object = try self.allocator.create(Expression), .property = property };
+                _memberExpression.object.* = object;
+                object = Expression{ .MemberExpression = _memberExpression };
+            }
+        }
+
+        return object;
     }
 
     const PrimaryExpression = union(enum) { Literal: Literal, Identifier: Identifier };
@@ -647,6 +683,7 @@ pub const Parser = struct {
     fn eat(self: *Parser, tokenType: Tokenizer.TokenType) !Tokenizer.Token {
         if (self.lookahead) |token| {
             if (token.type != tokenType) {
+                std.debug.print("{any}\n", .{token.type});
                 return Error.UnexpectedToken;
             }
 
