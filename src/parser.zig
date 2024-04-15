@@ -346,7 +346,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression };
+    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -529,10 +529,67 @@ pub const Parser = struct {
     }
 
     // LeftHandSideExpression
-    //  : MemberExpression
+    //  : CallMemberExpression
     //  ;
     fn leftHandSideExpression(self: *Parser) !Expression {
-        return self.memberExpression();
+        return self.callMemberExpression();
+    }
+
+    // CallMemberExpression
+    //  : MemberExpression
+    //  | CallExpression
+    //  ;
+    fn callMemberExpression(self: *Parser) !Expression {
+        const member = try self.memberExpression();
+
+        if (self.lookahead.?.type == .OpenPran) {
+            return self.callExpression(member);
+        }
+
+        return member;
+    }
+
+    const CallExpression = struct { callee: *Expression, arguments: []Expression };
+
+    // CallExpression
+    //  : Callee Arguments
+    //  ;
+    fn callExpression(self: *Parser, callee: Expression) !Expression {
+        var callE = Expression{ .CallExpression = CallExpression{ .callee = try self.allocator.create(Expression), .arguments = try self.arguments() } };
+        callE.CallExpression.callee.* = callee;
+
+        if (self.lookahead.?.type == .OpenPran) {
+            callE = try self.callExpression(callE);
+        }
+
+        return callE;
+    }
+
+    // Arguments
+    //  : '(' OptArgumentList ')'
+    //  ;
+    fn arguments(self: *Parser) Error![]Expression {
+        _ = try self.eat(.OpenPran);
+        const _argumentList: []Expression = if (self.lookahead.?.type != .ClosePran) try self.argumentList() else &[_]Expression{};
+        _ = try self.eat(.ClosePran);
+
+        return _argumentList;
+    }
+
+    // ArgumentList
+    //  : AssignmentExpression
+    //  | ArgumentList ',' AssignmentExpression
+    //  ;
+    fn argumentList(self: *Parser) ![]Expression {
+        var _argumentList = std.ArrayList(Expression).init(self.allocator);
+        try _argumentList.append(try self.assignmentExpression());
+
+        while (self.lookahead.?.type == .Comma) {
+            _ = try self.eat(.Comma);
+            try _argumentList.append(try self.assignmentExpression());
+        }
+
+        return _argumentList.toOwnedSlice();
     }
 
     const MemberExpressionProperty = union(enum) { Expression: *Expression, Identifier: Identifier };
