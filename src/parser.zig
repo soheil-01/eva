@@ -177,7 +177,7 @@ pub const Parser = struct {
         const testE = try self.expression();
         _ = try self.eat(.ClosePran);
 
-        var _whileStatement = WhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
+        const _whileStatement = WhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
         _whileStatement.body.* = try self.statement();
 
         return _whileStatement;
@@ -201,7 +201,7 @@ pub const Parser = struct {
         _ = try self.eat(.ClosePran);
         _ = try self.eat(.SemiColon);
 
-        var _doWhileStatement = DoWhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
+        const _doWhileStatement = DoWhileStatement{ .testE = testE, .body = try self.allocator.create(Statement) };
         _doWhileStatement.body.* = body;
 
         return _doWhileStatement;
@@ -227,7 +227,7 @@ pub const Parser = struct {
 
         const body = try self.statement();
 
-        var _forStatement = ForStatement{ .init = initS, .testE = testE, .update = update, .body = try self.allocator.create(Statement) };
+        const _forStatement = ForStatement{ .init = initS, .testE = testE, .update = update, .body = try self.allocator.create(Statement) };
         _forStatement.body.* = body;
 
         return _forStatement;
@@ -392,7 +392,7 @@ pub const Parser = struct {
             return left;
         }
 
-        var assignmentE = AssignmentExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = try self.assignmentOperator() };
+        const assignmentE = AssignmentExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = try self.assignmentOperator() };
         assignmentE.left.* = try checkValidAssignmentTarget(left);
         assignmentE.right.* = try self.assignmentExpression();
 
@@ -497,8 +497,8 @@ pub const Parser = struct {
         var left = try builderName(self);
         while (self.lookahead != null and self.lookahead.?.type == operatorType) {
             const operator = try self.eat(operatorType);
-            var right = try builderName(self);
-            var binaryE = BinaryExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
+            const right = try builderName(self);
+            const binaryE = BinaryExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
             binaryE.left.* = left;
             binaryE.right.* = right;
             left = Expression{ .BinaryExpression = binaryE };
@@ -514,8 +514,8 @@ pub const Parser = struct {
         var left = try builderName(self);
         while (self.lookahead != null and self.lookahead.?.type == operatorType) {
             const operator = try self.eat(operatorType);
-            var right = try builderName(self);
-            var logicalE = LogicalExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
+            const right = try builderName(self);
+            const logicalE = LogicalExpression{ .left = try self.allocator.create(Expression), .right = try self.allocator.create(Expression), .operator = operator };
             logicalE.left.* = left;
             logicalE.right.* = right;
             left = Expression{ .LogicalExpression = logicalE };
@@ -637,7 +637,7 @@ pub const Parser = struct {
             if (self.lookahead.?.type == .Dot) {
                 _ = try self.eat(.Dot);
                 const property = MemberExpressionProperty{ .Identifier = try self.identifier() };
-                var _memberExpression = MemberExpression{ .computed = false, .object = try self.allocator.create(Expression), .property = property };
+                const _memberExpression = MemberExpression{ .computed = false, .object = try self.allocator.create(Expression), .property = property };
                 _memberExpression.object.* = object;
                 object = Expression{ .MemberExpression = _memberExpression };
             }
@@ -645,10 +645,10 @@ pub const Parser = struct {
             // MemberExpression '[' Expression ']'
             if (self.lookahead.?.type == .OpenBracket) {
                 _ = try self.eat(.OpenBracket);
-                var property = MemberExpressionProperty{ .Expression = try self.allocator.create(Expression) };
+                const property = MemberExpressionProperty{ .Expression = try self.allocator.create(Expression) };
                 property.Expression.* = try self.expression();
                 _ = try self.eat(.CloseBracket);
-                var _memberExpression = MemberExpression{ .computed = true, .object = try self.allocator.create(Expression), .property = property };
+                const _memberExpression = MemberExpression{ .computed = true, .object = try self.allocator.create(Expression), .property = property };
                 _memberExpression.object.* = object;
                 object = Expression{ .MemberExpression = _memberExpression };
             }
@@ -684,7 +684,7 @@ pub const Parser = struct {
     fn newExpression(self: *Parser) !NewExpression {
         _ = try self.eat(.New);
         const callee = try self.memberExpression();
-        var newE = NewExpression{ .callee = try self.allocator.create(Expression), .arguments = try self.arguments() };
+        const newE = NewExpression{ .callee = try self.allocator.create(Expression), .arguments = try self.arguments() };
         newE.callee.* = callee;
 
         return newE;

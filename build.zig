@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    lib.addModule("regex", regex_mod);
+    lib.root_module.addImport("regex", regex_mod);
 
     // expose zig-rdp as a module
     _ = b.addModule("zig-rdp", .{ .root_source_file = .{ .path = "src/root.zig" } });
@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.addModule("regex", regex_mod);
+    exe.root_module.addImport("regex", regex_mod);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tests.addModule("regex", regex_mod);
+    tests.root_module.addImport("regex", regex_mod);
 
     const run_tests = b.addRunArtifact(tests);
 
