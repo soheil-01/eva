@@ -11,7 +11,7 @@ pub const Parser = struct {
         return Parser{ .allocator = allocator };
     }
 
-    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput, InvalidLeftHandSideInAssignmentExpression } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
+    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput, InvalidLeftHandSideInAssignmentExpression, UnexpectedPrimaryExpression } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
     // Parse a string into an AST.
     pub fn parse(self: *Parser, string: []const u8) Error!Program {
@@ -46,7 +46,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement };
+    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration };
 
     // Statement
     //  : ExpressionStatement
@@ -57,6 +57,7 @@ pub const Parser = struct {
     //  | IterationStatement
     //  | FunctionDeclaration
     //  | ReturnStatement
+    //  | ClassDeclaration
     //  ;
     fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
@@ -68,11 +69,34 @@ pub const Parser = struct {
                 .While, .Do, .For => self.iterationStatement(),
                 .Def => Statement{ .FunctionDeclaration = try self.functionDeclaration() },
                 .Return => Statement{ .ReturnStatement = try self.returnStatement() },
+                .Class => Statement{ .ClassDeclaration = try self.classDeclaration() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
 
         return Error.UnexpectedEndOfInput;
+    }
+
+    const ClassDeclaration = struct { id: Identifier, superClass: ?Identifier, body: BlockStatement };
+
+    // ClassDeclaration
+    //  : 'class' Identifier OptClassExtends BlockStatement
+    fn classDeclaration(self: *Parser) !ClassDeclaration {
+        _ = try self.eat(.Class);
+
+        const id = try self.identifier();
+        const superClass: ?Identifier = if (self.lookahead.?.type == .Extends) try self.classExtends() else null;
+        const body = try self.blockStatement();
+
+        return ClassDeclaration{ .id = id, .superClass = superClass, .body = body };
+    }
+
+    // ClassExtends
+    //  : 'extends' Identifier
+    //  ;
+    fn classExtends(self: *Parser) !Identifier {
+        _ = try self.eat(.Extends);
+        return self.identifier();
     }
 
     const FunctionDeclaration = struct { name: Identifier, params: []Identifier, body: BlockStatement };
@@ -346,7 +370,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { PrimaryExpression: PrimaryExpression, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression };
+    const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -376,7 +400,7 @@ pub const Parser = struct {
     }
 
     fn checkValidAssignmentTarget(node: Expression) !Expression {
-        if (node == .PrimaryExpression and node.PrimaryExpression == .Identifier) {
+        if (node == .Identifier or node == .MemberExpression) {
             return node;
         }
 
@@ -540,6 +564,11 @@ pub const Parser = struct {
     //  | CallExpression
     //  ;
     fn callMemberExpression(self: *Parser) !Expression {
+        // Super call
+        if (self.lookahead.?.type == .Super) {
+            return self.callExpression(Expression{ .Super = try self.super() });
+        }
+
         const member = try self.memberExpression();
 
         if (self.lookahead.?.type == .OpenPran) {
@@ -600,7 +629,7 @@ pub const Parser = struct {
     //  | MemberExpression '.' Identifier
     //  | MemberExpression '[' Expression ']'
     //  ;
-    fn memberExpression(self: *Parser) !Expression {
+    fn memberExpression(self: *Parser) Error!Expression {
         var object = try self.primaryExpression();
 
         while (self.lookahead.?.type == .Dot or self.lookahead.?.type == .OpenBracket) {
@@ -628,23 +657,58 @@ pub const Parser = struct {
         return object;
     }
 
-    const PrimaryExpression = union(enum) { Literal: Literal, Identifier: Identifier };
+    // ThisExpression
+    //  : 'this'
+    //  ;
+    const ThisExpression = struct {};
+    fn thisExpression(self: *Parser) !ThisExpression {
+        _ = try self.eat(.This);
+        return ThisExpression{};
+    }
+
+    const Super = struct {};
+
+    // Super
+    //  : 'super'
+    //  ;
+    fn super(self: *Parser) !Super {
+        _ = try self.eat(.Super);
+        return Super{};
+    }
+
+    const NewExpression = struct { callee: *Expression, arguments: []Expression };
+
+    // NewExpression
+    //  : 'new' MemberExpression Arguments
+    //  ;
+    fn newExpression(self: *Parser) !NewExpression {
+        _ = try self.eat(.New);
+        const callee = try self.memberExpression();
+        var newE = NewExpression{ .callee = try self.allocator.create(Expression), .arguments = try self.arguments() };
+        newE.callee.* = callee;
+
+        return newE;
+    }
 
     // PrimaryExpression
     //  : Literal
     //  | ParenthesizedExpression
     //  | Identifier
+    //  | ThisExpression
+    //  | NewExpression
     //  ;
     fn primaryExpression(self: *Parser) !Expression {
         if (try self.isLiteral()) {
-            return Expression{ .PrimaryExpression = PrimaryExpression{ .Literal = try self.literal() } };
+            return Expression{ .Literal = try self.literal() };
         }
 
         if (self.lookahead) |lookahead| {
             return switch (lookahead.type) {
                 .OpenPran => self.parenthesizedExpression(),
-                .Identifier => Expression{ .PrimaryExpression = .{ .Identifier = try self.identifier() } },
-                else => Error.UnexpectedToken,
+                .Identifier => Expression{ .Identifier = try self.identifier() },
+                .This => Expression{ .ThisExpression = try self.thisExpression() },
+                .New => Expression{ .NewExpression = try self.newExpression() },
+                else => Error.UnexpectedPrimaryExpression,
             };
         }
 
