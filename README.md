@@ -2,6 +2,10 @@
 
 Recursive Descent Parser in Zig, based on [Building a Parser from scratch](https://www.udemy.com/course/parser-from-scratch/).
 
+## Dependencies
+
+- [zig-regex](https://github.com/tiehuis/zig-regex)
+
 ## Run
 
 ```bash
