@@ -18,26 +18,8 @@ pub fn build(b: *std.Build) void {
     const opts = .{ .target = target, .optimize = optimize };
     const regex_mod = b.dependency("regex", opts).module("regex");
 
-    const lib = b.addStaticLibrary(.{
-        .name = "zig-rdp",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = "src/root.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    lib.root_module.addImport("regex", regex_mod);
-
-    // expose zig-rdp as a module
-    _ = b.addModule("zig-rdp", .{ .root_source_file = .{ .path = "src/root.zig" } });
-
-    // This declares intent for the library to be installed into the standard
-    // location when the user invokes the "install" step (the default step when
-    // running `zig build`).
-    b.installArtifact(lib);
-
     const exe = b.addExecutable(.{
-        .name = "zig-rdp",
+        .name = "eva",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
