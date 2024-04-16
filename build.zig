@@ -28,6 +28,9 @@ pub fn build(b: *std.Build) void {
     });
     lib.addModule("regex", regex_mod);
 
+    // expose zig-rdp as a module
+    _ = b.addModule("zig-rdp", .{ .root_source_file = .{ .path = "src/root.zig" } });
+
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
