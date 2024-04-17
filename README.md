@@ -9,5 +9,5 @@ Eva is a simple, interpreted programming language designed for educational purpo
 ## Run
 
 ```bash
-zig build run -- tests/basic.zz
+zig build run -- example/basic.eva
 ```
