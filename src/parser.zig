@@ -23,7 +23,7 @@ pub const Parser = struct {
         return self.program();
     }
 
-    const Program = struct { body: []Statement };
+    pub const Program = struct { body: []Statement };
 
     // Main entry point.
     // Program
@@ -46,7 +46,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration };
+    pub const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration };
 
     // Statement
     //  : ExpressionStatement
@@ -77,7 +77,7 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
-    const ClassDeclaration = struct { id: Identifier, superClass: ?Identifier, body: BlockStatement };
+    pub const ClassDeclaration = struct { id: Identifier, superClass: ?Identifier, body: BlockStatement };
 
     // ClassDeclaration
     //  : 'class' Identifier OptClassExtends BlockStatement
@@ -99,7 +99,7 @@ pub const Parser = struct {
         return self.identifier();
     }
 
-    const FunctionDeclaration = struct { name: Identifier, params: []Identifier, body: BlockStatement };
+    pub const FunctionDeclaration = struct { name: Identifier, params: []Identifier, body: BlockStatement };
 
     // FunctionDeclaration
     //  : 'def' Identifier '(' OptFormalParameterList ')' BlockStatement
@@ -134,7 +134,7 @@ pub const Parser = struct {
         return params.toOwnedSlice();
     }
 
-    const ReturnStatement = struct { argument: ?Expression };
+    pub const ReturnStatement = struct { argument: ?Expression };
 
     // ReturnStatement
     //  : 'return' OptExpression ';'
@@ -165,7 +165,7 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
-    const WhileStatement = struct { testE: Expression, body: *Statement };
+    pub const WhileStatement = struct { testE: Expression, body: *Statement };
 
     // WhileStatement
     //  : 'while' '(' Expression ')' Statement
@@ -183,7 +183,7 @@ pub const Parser = struct {
         return _whileStatement;
     }
 
-    const DoWhileStatement = struct { testE: Expression, body: *Statement };
+    pub const DoWhileStatement = struct { testE: Expression, body: *Statement };
 
     // DoWhileStatement
     //  : 'do' Statement 'while' '(' Expression ')' ';'
@@ -207,7 +207,7 @@ pub const Parser = struct {
         return _doWhileStatement;
     }
 
-    const ForStatement = struct { init: ?ForStatementInit, testE: ?Expression, update: ?Expression, body: *Statement };
+    pub const ForStatement = struct { init: ?ForStatementInit, testE: ?Expression, update: ?Expression, body: *Statement };
 
     // ForStatement
     //  : 'for' '(' OptForStatementInit ';' OptExpression ';' OptExpression ')' Statement
@@ -233,7 +233,7 @@ pub const Parser = struct {
         return _forStatement;
     }
 
-    const ForStatementInit = union(enum) { VariableStatement: VariableStatement, Expression: Expression };
+    pub const ForStatementInit = union(enum) { VariableStatement: VariableStatement, Expression: Expression };
 
     // ForStatementInit
     //  : VariableStatementInit
@@ -247,7 +247,7 @@ pub const Parser = struct {
         return ForStatementInit{ .Expression = try self.expression() };
     }
 
-    const IfStatement = struct { testE: Expression, consequent: *Statement, alternate: ?*Statement };
+    pub const IfStatement = struct { testE: Expression, consequent: *Statement, alternate: ?*Statement };
 
     // IfStatement
     //  : 'if' '(' Expression ')' Statement
@@ -273,7 +273,7 @@ pub const Parser = struct {
         return _ifStatement;
     }
 
-    const VariableStatement = struct { declarations: []VariableDeclaration };
+    pub const VariableStatement = struct { declarations: []VariableDeclaration };
 
     // VariableStatementInit
     //  : 'let' VariableDeclarationList
@@ -310,7 +310,7 @@ pub const Parser = struct {
         return declarations.toOwnedSlice();
     }
 
-    const VariableDeclaration = struct { id: Identifier, init: ?Expression };
+    pub const VariableDeclaration = struct { id: Identifier, init: ?Expression };
 
     // VariableDeclaration
     //  : Identifier OptVariableInitializer
@@ -335,7 +335,7 @@ pub const Parser = struct {
         return self.assignmentExpression();
     }
 
-    const EmptyStatement = struct {};
+    pub const EmptyStatement = struct {};
 
     // EmptyStatement
     // : ';'
@@ -345,7 +345,7 @@ pub const Parser = struct {
         return EmptyStatement{};
     }
 
-    const BlockStatement = struct { body: []Statement };
+    pub const BlockStatement = struct { body: []Statement };
 
     // BlockStatement
     // '{' OptStatementList '}'
@@ -358,7 +358,7 @@ pub const Parser = struct {
         return BlockStatement{ .body = body };
     }
 
-    const ExpressionStatement = struct { expression: Expression };
+    pub const ExpressionStatement = struct { expression: Expression };
 
     // ExpressionStatement
     //  : Expression ';'
@@ -370,7 +370,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression };
+    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -379,7 +379,7 @@ pub const Parser = struct {
         return self.assignmentExpression();
     }
 
-    const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+    pub const AssignmentExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
     // AssignmentExpression
     //  : LogicalORExpression
@@ -416,7 +416,7 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
-    const Identifier = struct { name: []const u8 };
+    pub const Identifier = struct { name: []const u8 };
 
     // Identifier
     //  : IDENTIFIER
@@ -490,7 +490,7 @@ pub const Parser = struct {
         return self.binaryExpression(unaryExpression, .MultiplicativeOperator);
     }
 
-    const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+    pub const BinaryExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
     // Generic Binary Expression
     fn binaryExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
@@ -507,7 +507,7 @@ pub const Parser = struct {
         return left;
     }
 
-    const LogicalExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
+    pub const LogicalExpression = struct { operator: Tokenizer.Token, left: *Expression, right: *Expression };
 
     // Generic Logical Expression
     fn logicalExpression(self: *Parser, comptime builderName: fn (*Parser) (Error)!Expression, comptime operatorType: Tokenizer.TokenType) !Expression {
@@ -524,7 +524,7 @@ pub const Parser = struct {
         return left;
     }
 
-    const UnaryExpression = struct { operator: Tokenizer.Token, argument: *Expression };
+    pub const UnaryExpression = struct { operator: Tokenizer.Token, argument: *Expression };
 
     // UnaryExpression
     //  : LeftHandSideExpression
@@ -578,7 +578,7 @@ pub const Parser = struct {
         return member;
     }
 
-    const CallExpression = struct { callee: *Expression, arguments: []Expression };
+    pub const CallExpression = struct { callee: *Expression, arguments: []Expression };
 
     // CallExpression
     //  : Callee Arguments
@@ -621,8 +621,8 @@ pub const Parser = struct {
         return _argumentList.toOwnedSlice();
     }
 
-    const MemberExpressionProperty = union(enum) { Expression: *Expression, Identifier: Identifier };
-    const MemberExpression = struct { computed: bool, object: *Expression, property: MemberExpressionProperty };
+    pub const MemberExpressionProperty = union(enum) { Expression: *Expression, Identifier: Identifier };
+    pub const MemberExpression = struct { computed: bool, object: *Expression, property: MemberExpressionProperty };
 
     // MemberExpression
     //  : PrimaryExpression
@@ -657,16 +657,17 @@ pub const Parser = struct {
         return object;
     }
 
+    pub const ThisExpression = struct {};
+
     // ThisExpression
     //  : 'this'
     //  ;
-    const ThisExpression = struct {};
     fn thisExpression(self: *Parser) !ThisExpression {
         _ = try self.eat(.This);
         return ThisExpression{};
     }
 
-    const Super = struct {};
+    pub const Super = struct {};
 
     // Super
     //  : 'super'
@@ -676,7 +677,7 @@ pub const Parser = struct {
         return Super{};
     }
 
-    const NewExpression = struct { callee: *Expression, arguments: []Expression };
+    pub const NewExpression = struct { callee: *Expression, arguments: []Expression };
 
     // NewExpression
     //  : 'new' MemberExpression Arguments
@@ -734,7 +735,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral, BooleanLiteral: BooleanLiteral, NullLiteral: NullLiteral };
+    pub const Literal = union(enum) { NumericLiteral: NumberLiteral, StringLiteral: StringLiteral, BooleanLiteral: BooleanLiteral, NullLiteral: NullLiteral };
 
     // Literal
     //  : NumericLiteral
@@ -757,7 +758,7 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
-    const BooleanLiteral = struct { value: bool };
+    pub const BooleanLiteral = struct { value: bool };
 
     // BooleanLiteral
     //  : 'true'
@@ -769,7 +770,7 @@ pub const Parser = struct {
         return BooleanLiteral{ .value = value };
     }
 
-    const NullLiteral = struct {};
+    pub const NullLiteral = struct {};
 
     // NullLiteral
     //  : 'null'
@@ -780,7 +781,7 @@ pub const Parser = struct {
         return NullLiteral{};
     }
 
-    const StringLiteral = struct { value: []const u8 };
+    pub const StringLiteral = struct { value: []const u8 };
 
     // StringLiteral
     //  : String
@@ -790,7 +791,7 @@ pub const Parser = struct {
         return StringLiteral{ .value = token.value[1 .. token.value.len - 1] };
     }
 
-    const NumberLiteral = struct { value: u64 };
+    pub const NumberLiteral = struct { value: u64 };
 
     // NumericLiteral
     // : Number
