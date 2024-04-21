@@ -6,19 +6,12 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     var parser = Parser.init(allocator);
-    const ast = try parser.parse(
-        \\{
-        \\for(let i = 0; i < 10; i = i + 1){
-        \\  i;
-        \\}
-        \\}
-    );
-    const statement = ast.body[0];
+    const ast = try parser.parse("2 + 2 == 4;");
 
     var eva = try Eva.init(allocator);
-    const result = try eva.eval(statement, &eva.global);
+    const result = try eva.evalProgram(ast);
 
-    Eva.displayResult(result);
+    try result.display(allocator);
 
     // var args = std.process.args();
     // _ = args.next();

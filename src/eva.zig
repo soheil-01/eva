@@ -10,12 +10,39 @@ pub const Eva = struct {
         var global = Environment.init(allocator, null);
         _ = try global.define("VERSION", EvalResult{ .String = "0.0.1" });
 
-        return Eva{ .allocator = allocator, .global = Environment.init(allocator, null) };
+        return Eva{ .allocator = allocator, .global = global };
     }
 
     pub const Error = error{ InvalidOperandTypes, UnimplementedStatement } || Environment.Error || std.mem.Allocator.Error;
 
-    pub const EvalResult = union(enum) { Number: u64, String: []const u8, Null: void, Bool: bool };
+    pub const EvalResult = union(enum) {
+        Number: u64,
+        String: []const u8,
+        Null: void,
+        Bool: bool,
+
+        pub fn toString(self: EvalResult, allocator: std.mem.Allocator) ![]u8 {
+            return switch (self) {
+                .Number => |number| std.fmt.allocPrint(allocator, "{}", .{number}),
+                .String => |string| std.fmt.allocPrint(allocator, "'{s}'", .{string}),
+                .Null => std.fmt.allocPrint(allocator, "null", .{}),
+                .Bool => |boolean| std.fmt.allocPrint(allocator, "{}", .{boolean}),
+            };
+        }
+
+        pub fn display(self: EvalResult, allocator: std.mem.Allocator) !void {
+            std.debug.print("{s}\n", .{try self.toString(allocator)});
+        }
+    };
+
+    pub fn evalProgram(self: *Eva, program: Parser.Program) Error!EvalResult {
+        var result = EvalResult{ .Null = {} };
+        for (program.body) |statement| {
+            result = try self.eval(statement, &self.global);
+        }
+
+        return result;
+    }
 
     pub fn eval(self: *Eva, statement: Parser.Statement, env: *Environment) Error!EvalResult {
         return switch (statement) {
@@ -191,6 +218,17 @@ pub const Eva = struct {
                     },
                 };
             },
+            .EqualityOperator => {
+                if (std.mem.eql(u8, operator.value, "==")) {
+                    return EvalResult{ .Bool = left.Number == right.Number };
+                }
+
+                if (std.mem.eql(u8, operator.value, "!=")) {
+                    return EvalResult{ .Bool = left.Number != right.Number };
+                }
+
+                unreachable;
+            },
             else => {
                 unreachable;
             },
@@ -205,22 +243,5 @@ pub const Eva = struct {
                 unreachable;
             },
         };
-    }
-
-    pub fn displayResult(result: EvalResult) void {
-        switch (result) {
-            .Number => |number| {
-                std.debug.print("{}\n", .{number});
-            },
-            .String => |string| {
-                std.debug.print("'{s}'\n", .{string});
-            },
-            .Null => {
-                std.debug.print("null\n", .{});
-            },
-            .Bool => |boolean| {
-                std.debug.print("{}\n", .{boolean});
-            },
-        }
     }
 };
