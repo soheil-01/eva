@@ -9,12 +9,9 @@ pub fn main() !void {
     const ast = try parser.parse(
         \\{
         \\ let x = 1;
-        \\ x = 3;
-        \\{
-        \\  let x = 4;
-        \\  x;
-        \\}
-        \\ x;
+        \\ do {
+        \\  x = x + 1;
+        \\ } while(x < 1);
         \\}
     );
     const statement = ast.body[0];
@@ -22,7 +19,7 @@ pub fn main() !void {
     var eva = try Eva.init(allocator);
     const result = try eva.eval(statement, &eva.global);
 
-    eva.displayResult(result);
+    Eva.displayResult(result);
 
     // var args = std.process.args();
     // _ = args.next();
