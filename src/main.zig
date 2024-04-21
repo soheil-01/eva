@@ -8,10 +8,9 @@ pub fn main() !void {
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
         \\{
-        \\ let x = 1;
-        \\ do {
-        \\  x = x + 1;
-        \\ } while(x < 1);
+        \\for(let i = 0; i < 10; i = i + 1){
+        \\  i;
+        \\}
         \\}
     );
     const statement = ast.body[0];

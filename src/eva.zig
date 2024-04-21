@@ -25,8 +25,38 @@ pub const Eva = struct {
             .IfStatement => |ifStmt| self.evalIfStatement(ifStmt, env),
             .WhileStatement => |whileStmt| self.evalWhileStatement(whileStmt, env),
             .DoWhileStatement => |doWhileStmt| self.evalDoWhileStatement(doWhileStmt, env),
+            .ForStatement => |forStmt| self.evalForStatement(forStmt, env),
             else => Error.UnimplementedStatement,
         };
+    }
+
+    fn evalForStatement(self: *Eva, forStmt: Parser.ForStatement, env: *Environment) Error!EvalResult {
+        var forEnv = Environment.init(self.allocator, env);
+
+        if (forStmt.init) |initStmt| {
+            _ = switch (initStmt) {
+                .Expression => |exp| try self.evalExpression(exp, &forEnv),
+                .VariableStatement => |variableStmt| try self.eval(Parser.Statement{ .VariableStatement = variableStmt }, &forEnv),
+            };
+        }
+
+        var result = EvalResult{ .Null = {} };
+        while (true) {
+            if (forStmt.testE) |testE| {
+                const testExpResult = try self.evalExpression(testE, &forEnv);
+                if (testExpResult != .Bool or !testExpResult.Bool) {
+                    break;
+                }
+            }
+
+            result = try self.eval(forStmt.body.*, &forEnv);
+
+            if (forStmt.update) |updateExp| {
+                _ = try self.evalExpression(updateExp, &forEnv);
+            }
+        }
+
+        return result;
     }
 
     fn evalDoWhileStatement(self: *Eva, doWhileStmt: Parser.DoWhileStatement, env: *Environment) Error!EvalResult {
@@ -91,32 +121,26 @@ pub const Eva = struct {
     }
 
     fn evalExpression(self: *Eva, exp: Parser.Expression, env: *Environment) Error!EvalResult {
-        switch (exp) {
-            .Literal => |literal| {
-                return self.evalLiteral(literal);
-            },
-            .BinaryExpression => |binaryExp| {
-                return self.evalBinaryExpression(binaryExp, env);
-            },
-            .Identifier => |identifier| {
-                return env.lookup(identifier.name);
-            },
-            .AssignmentExpression => |assignmentExp| {
-                const left = assignmentExp.left.*;
-                const right = assignmentExp.right.*;
+        return switch (exp) {
+            .Literal => |literal| self.evalLiteral(literal),
+            .BinaryExpression => |binaryExp| self.evalBinaryExpression(binaryExp, env),
+            .Identifier => |identifier| env.lookup(identifier.name),
+            .AssignmentExpression => |assignmentExp| self.evalAssignmentExpression(assignmentExp, env),
+            else => EvalResult{ .Null = {} },
+        };
+    }
 
-                switch (assignmentExp.operator.type) {
-                    .SimpleAssign => {
-                        switch (left) {
-                            .Identifier => |identifier| {
-                                const value = try self.evalExpression(right, env);
-                                try env.assign(identifier.name, value);
-                                return value;
-                            },
-                            else => {
-                                unreachable;
-                            },
-                        }
+    fn evalAssignmentExpression(self: *Eva, assignmentExp: Parser.AssignmentExpression, env: *Environment) Error!EvalResult {
+        const left = assignmentExp.left.*;
+        const right = assignmentExp.right.*;
+
+        switch (assignmentExp.operator.type) {
+            .SimpleAssign => {
+                switch (left) {
+                    .Identifier => |identifier| {
+                        const value = try self.evalExpression(right, env);
+                        try env.assign(identifier.name, value);
+                        return value;
                     },
                     else => {
                         unreachable;
@@ -127,8 +151,6 @@ pub const Eva = struct {
                 unreachable;
             },
         }
-
-        return EvalResult{ .Null = {} };
     }
 
     fn evalBinaryExpression(self: *Eva, binaryExp: Parser.BinaryExpression, env: *Environment) !EvalResult {
