@@ -98,3 +98,7 @@ test "For" {
         \\}
     , "10");
 }
+
+test "Unary" {
+    try testEvaluationOutput("!(2 > 1);", "false");
+}

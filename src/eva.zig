@@ -153,8 +153,41 @@ pub const Eva = struct {
             .BinaryExpression => |binaryExp| self.evalBinaryExpression(binaryExp, env),
             .Identifier => |identifier| env.lookup(identifier.name),
             .AssignmentExpression => |assignmentExp| self.evalAssignmentExpression(assignmentExp, env),
+            .UnaryExpression => |unaryExp| self.evalUnaryExpression(unaryExp, env),
             else => EvalResult{ .Null = {} },
         };
+    }
+
+    fn evalUnaryExpression(self: *Eva, unaryExp: Parser.UnaryExpression, env: *Environment) Error!EvalResult {
+        const operator = unaryExp.operator;
+        const argument = try self.evalExpression(unaryExp.argument.*, env);
+
+        switch (operator.type) {
+            .LogicalNot => {
+                if (argument != .Bool) {
+                    return Error.InvalidOperandTypes;
+                }
+
+                return EvalResult{ .Bool = !argument.Bool };
+            },
+            .AdditiveOperator => {
+                if (argument != .Number) {
+                    return Error.InvalidOperandTypes;
+                }
+
+                return switch (operator.value[0]) {
+                    '+' => argument,
+                    // TODO: Add support for negative numbers
+                    //'-' => EvalResult{ .Number = -argument.Number },
+                    else => {
+                        unreachable;
+                    },
+                };
+            },
+            else => {
+                unreachable;
+            },
+        }
     }
 
     fn evalAssignmentExpression(self: *Eva, assignmentExp: Parser.AssignmentExpression, env: *Environment) Error!EvalResult {
