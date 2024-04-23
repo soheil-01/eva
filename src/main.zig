@@ -6,7 +6,9 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     var parser = Parser.init(allocator);
-    const ast = try parser.parse("!(2 + 2 == 4);");
+    const ast = try parser.parse(
+        \\ print("hello");
+    );
 
     var eva = try Eva.init(allocator);
     const result = try eva.evalProgram(ast);

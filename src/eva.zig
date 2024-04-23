@@ -9,24 +9,47 @@ pub const Eva = struct {
     pub fn init(allocator: std.mem.Allocator) !Eva {
         var global = Environment.init(allocator, null);
         _ = try global.define("VERSION", EvalResult{ .String = "0.0.1" });
+        _ = try global.define("print", EvalResult{ .Function = .{ .Native = .{ .Print = {} } } });
 
         return Eva{ .allocator = allocator, .global = global };
     }
 
-    pub const Error = error{ InvalidOperandTypes, UnimplementedStatement } || Environment.Error || std.mem.Allocator.Error;
+    pub const Error = error{ InvalidOperandTypes, UnimplementedStatement, UnimplementedExpression } || Environment.Error || std.mem.Allocator.Error;
+
+    const NativeFunction = union(enum) {
+        Print,
+
+        fn call(self: NativeFunction, args: []EvalResult, allocator: std.mem.Allocator) !void {
+            switch (self) {
+                .Print => {
+                    for (args, 0..) |arg, i| {
+                        std.debug.print("{s}", .{try arg.toString(allocator)});
+                        if (i < args.len - 1) {
+                            std.debug.print(" ", .{});
+                        }
+                    }
+                    std.debug.print("\n", .{});
+                },
+            }
+        }
+    };
+
+    const Function = union(enum) { Native: NativeFunction };
 
     pub const EvalResult = union(enum) {
         Number: u64,
         String: []const u8,
         Null: void,
         Bool: bool,
+        Function: Function,
 
         pub fn toString(self: EvalResult, allocator: std.mem.Allocator) ![]u8 {
             return switch (self) {
                 .Number => |number| std.fmt.allocPrint(allocator, "{}", .{number}),
-                .String => |string| std.fmt.allocPrint(allocator, "'{s}'", .{string}),
+                .String => |string| std.fmt.allocPrint(allocator, "{s}", .{string}),
                 .Null => std.fmt.allocPrint(allocator, "null", .{}),
                 .Bool => |boolean| std.fmt.allocPrint(allocator, "{}", .{boolean}),
+                .Function => std.fmt.allocPrint(allocator, "<fn>", .{}),
             };
         }
 
@@ -53,6 +76,7 @@ pub const Eva = struct {
             .WhileStatement => |whileStmt| self.evalWhileStatement(whileStmt, env),
             .DoWhileStatement => |doWhileStmt| self.evalDoWhileStatement(doWhileStmt, env),
             .ForStatement => |forStmt| self.evalForStatement(forStmt, env),
+            .EmptyStatement => EvalResult{ .Null = {} },
             else => Error.UnimplementedStatement,
         };
     }
@@ -154,8 +178,30 @@ pub const Eva = struct {
             .Identifier => |identifier| env.lookup(identifier.name),
             .AssignmentExpression => |assignmentExp| self.evalAssignmentExpression(assignmentExp, env),
             .UnaryExpression => |unaryExp| self.evalUnaryExpression(unaryExp, env),
-            else => EvalResult{ .Null = {} },
+            .CallExpression => |callExp| self.evalCallExpression(callExp, env),
+            else => Error.UnimplementedExpression,
         };
+    }
+
+    fn evalCallExpression(self: *Eva, callExp: Parser.CallExpression, env: *Environment) Error!EvalResult {
+        const callee = try self.evalExpression(callExp.callee.*, env);
+
+        var args = std.ArrayList(EvalResult).init(self.allocator);
+        for (callExp.arguments) |arg| {
+            try args.append(try self.evalExpression(arg, env));
+        }
+
+        if (callee != .Function) {
+            return Error.VariableIsNotDefined;
+        }
+
+        switch (callee.Function) {
+            .Native => |nativeFunc| {
+                try nativeFunc.call(try args.toOwnedSlice(), self.allocator);
+            },
+        }
+
+        return EvalResult{ .Null = {} };
     }
 
     fn evalUnaryExpression(self: *Eva, unaryExp: Parser.UnaryExpression, env: *Environment) Error!EvalResult {
