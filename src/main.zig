@@ -8,23 +8,12 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     var parser = Parser.init(allocator);
-    const ast = try parser.parse(
-        \\ let value = 100;
-        \\ def calc(x, y){
-        \\   let z = x + y;
-        \\   def inner(foo){
-        \\   return foo + z + value;
-        \\}
-        \\  return inner;
-        \\}
-        \\let fn = calc(10, 20);
-        \\fn(30);
-    );
+    const ast = try parser.parse("");
 
-    var eva = try Eva.init(allocator);
-    const result = try eva.evalProgram(ast);
+    // var eva = try Eva.init(allocator);
+    // const result = try eva.evalProgram(ast);
 
-    try result.display(allocator);
+    // try result.display(allocator);
 
     // var args = std.process.args();
     // _ = args.next();
@@ -44,6 +33,6 @@ pub fn main() !void {
     // var parser = Parser.init(allocator);
     // const ast = try parser.parse(codes);
 
-    // const string = try std.json.stringifyAlloc(allocator, ast, .{});
-    // std.debug.print("{s}\n", .{string});
+    const string = try std.json.stringifyAlloc(allocator, ast, .{});
+    std.debug.print("{s}\n", .{string});
 }

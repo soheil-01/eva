@@ -370,7 +370,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression };
+    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression, LambdaExpression: LambdaExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -691,12 +691,33 @@ pub const Parser = struct {
         return newE;
     }
 
+    pub const LambdaExpressionBody = union(enum) { Expression: *Expression, BlockStatement: BlockStatement };
+    pub const LambdaExpression = struct { params: []Identifier, body: LambdaExpressionBody };
+
+    fn lambdaExpression(self: *Parser) !LambdaExpression {
+        _ = try self.eat(.Lambda);
+        _ = try self.eat(.OpenPran);
+
+        const params: []Identifier = if (self.lookahead.?.type != .ClosePran) try self.formalParameterList() else &[_]Identifier{};
+        _ = try self.eat(.ClosePran);
+        var body: LambdaExpressionBody = undefined;
+        if (self.lookahead.?.type == .OpenBrace) {
+            body = LambdaExpressionBody{ .BlockStatement = try self.blockStatement() };
+        } else {
+            body = LambdaExpressionBody{ .Expression = try self.allocator.create(Expression) };
+            body.Expression.* = try self.expression();
+        }
+
+        return LambdaExpression{ .params = params, .body = body };
+    }
+
     // PrimaryExpression
     //  : Literal
     //  | ParenthesizedExpression
     //  | Identifier
     //  | ThisExpression
     //  | NewExpression
+    //  | LambdaExpression
     //  ;
     fn primaryExpression(self: *Parser) !Expression {
         if (try self.isLiteral()) {
@@ -709,6 +730,7 @@ pub const Parser = struct {
                 .Identifier => Expression{ .Identifier = try self.identifier() },
                 .This => Expression{ .ThisExpression = try self.thisExpression() },
                 .New => Expression{ .NewExpression = try self.newExpression() },
+                .Lambda => Expression{ .LambdaExpression = try self.lambdaExpression() },
                 else => Error.UnexpectedPrimaryExpression,
             };
         }

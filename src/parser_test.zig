@@ -227,3 +227,13 @@ test "Class" {
         \\{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"p"},"init":{"NewExpression":{"callee":{"Identifier":{"name":"Point3D"}},"arguments":[{"Literal":{"NumericLiteral":{"value":10}}},{"Literal":{"NumericLiteral":{"value":20}}},{"Literal":{"NumericLiteral":{"value":30}}}]}}}]}},{"ExpressionStatement":{"expression":{"CallExpression":{"callee":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"p"}},"property":{"Identifier":{"name":"calc"}}}},"arguments":[]}}}}]}
     );
 }
+
+test "Lambda" {
+    try testParserOutput("let func = lambda (x,y) x+y;",
+        \\{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"func"},"init":{"LambdaExpression":{"params":[{"name":"x"},{"name":"y"}],"body":{"Expression":{"BinaryExpression":{"operator":{"type":"AdditiveOperator","value":"+"},"left":{"Identifier":{"name":"x"}},"right":{"Identifier":{"name":"y"}}}}}}}}]}}]}
+    );
+
+    try testParserOutput("let func = lambda () {return 10;};",
+        \\{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"func"},"init":{"LambdaExpression":{"params":[],"body":{"BlockStatement":{"body":[{"ReturnStatement":{"argument":{"Literal":{"NumericLiteral":{"value":10}}}}}]}}}}}]}}]}
+    );
+}
