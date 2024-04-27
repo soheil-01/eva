@@ -42,7 +42,9 @@ pub const Eva = struct {
         env: *Environment,
     };
 
-    const Function = union(enum) { Native: NativeFunction, UserDefined: UserDefinedFunction };
+    const LambdaFunction = struct { params: []Parser.Identifier, body: Parser.LambdaExpressionBody, env: *Environment };
+
+    const Function = union(enum) { Native: NativeFunction, UserDefined: UserDefinedFunction, Lambda: LambdaFunction };
 
     pub const EvalResult = union(enum) {
         Number: u64,
@@ -210,8 +212,13 @@ pub const Eva = struct {
             .AssignmentExpression => |assignmentExp| self.evalAssignmentExpression(assignmentExp, env),
             .UnaryExpression => |unaryExp| self.evalUnaryExpression(unaryExp, env),
             .CallExpression => |callExp| self.evalCallExpression(callExp, env),
+            .LambdaExpression => |lambdaExp| self.evalLambdaExpression(lambdaExp, env),
             else => Error.UnimplementedExpression,
         };
+    }
+
+    fn evalLambdaExpression(_: *Eva, lambdaExp: Parser.LambdaExpression, env: *Environment) Error!EvalResult {
+        return EvalResult{ .Function = .{ .Lambda = .{ .params = lambdaExp.params, .body = lambdaExp.body, .env = try env.clone() } } };
     }
 
     fn evalCallExpression(self: *Eva, callExp: Parser.CallExpression, env: *Environment) Error!EvalResult {
@@ -238,6 +245,17 @@ pub const Eva = struct {
                 }
 
                 return self.evalBody(userDefinedFunc.body, &activationEnv);
+            },
+            .Lambda => |lambdaFunc| {
+                var activationEnv = Environment.init(self.allocator, lambdaFunc.env);
+                for (lambdaFunc.params, 0..) |param, i| {
+                    _ = try activationEnv.define(param.name, evaluatedArgs[i]);
+                }
+
+                return switch (lambdaFunc.body) {
+                    .BlockStatement => self.evalBody(lambdaFunc.body.BlockStatement, &activationEnv),
+                    .Expression => self.evalExpression(lambdaFunc.body.Expression.*, &activationEnv),
+                };
             },
         }
     }

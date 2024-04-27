@@ -117,3 +117,23 @@ test "Function" {
         \\fn(30);
     , "160");
 }
+
+test "Lambda" {
+    try testEvaluationOutput(
+        \\ def onClick(callback) {
+        \\ let x = 10;
+        \\ let y = 20;
+        \\ return callback(x+y);
+        \\}
+        \\ onClick(lambda (data) data * 10);
+    , "300");
+
+    // IILE
+    try testEvaluationOutput("(lambda (x) x * 2)(2);", "4");
+
+    // Save lambda to a variable
+    try testEvaluationOutput(
+        \\ let square = lambda (x) x * x;
+        \\ square(4);
+    , "16");
+}
