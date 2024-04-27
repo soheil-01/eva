@@ -19,7 +19,7 @@ pub const Eva = struct {
     const NativeFunction = union(enum) {
         Print,
 
-        fn call(self: NativeFunction, args: []EvalResult, allocator: std.mem.Allocator) !void {
+        fn call(self: NativeFunction, args: []EvalResult, allocator: std.mem.Allocator) !EvalResult {
             switch (self) {
                 .Print => {
                     for (args, 0..) |arg, i| {
@@ -29,12 +29,20 @@ pub const Eva = struct {
                         }
                     }
                     std.debug.print("\n", .{});
+
+                    return EvalResult{ .Null = {} };
                 },
             }
         }
     };
 
-    const Function = union(enum) { Native: NativeFunction };
+    const UserDefinedFunction = struct {
+        params: []Parser.Identifier,
+        body: Parser.BlockStatement,
+        env: *Environment,
+    };
+
+    const Function = union(enum) { Native: NativeFunction, UserDefined: UserDefinedFunction };
 
     pub const EvalResult = union(enum) {
         Number: u64,
@@ -42,6 +50,7 @@ pub const Eva = struct {
         Null: void,
         Bool: bool,
         Function: Function,
+        Return: ?*EvalResult,
 
         pub fn toString(self: EvalResult, allocator: std.mem.Allocator) ![]u8 {
             return switch (self) {
@@ -50,6 +59,9 @@ pub const Eva = struct {
                 .Null => std.fmt.allocPrint(allocator, "null", .{}),
                 .Bool => |boolean| std.fmt.allocPrint(allocator, "{}", .{boolean}),
                 .Function => std.fmt.allocPrint(allocator, "<fn>", .{}),
+                .Return => {
+                    unreachable;
+                },
             };
         }
 
@@ -77,8 +89,27 @@ pub const Eva = struct {
             .DoWhileStatement => |doWhileStmt| self.evalDoWhileStatement(doWhileStmt, env),
             .ForStatement => |forStmt| self.evalForStatement(forStmt, env),
             .EmptyStatement => EvalResult{ .Null = {} },
+            .FunctionDeclaration => |functionDeclaration| self.evalFunctionDeclaration(functionDeclaration, env),
+            .ReturnStatement => |returnStmt| self.evalReturnStatement(returnStmt, env),
             else => Error.UnimplementedStatement,
         };
+    }
+
+    fn evalReturnStatement(self: *Eva, returnStmt: Parser.ReturnStatement, env: *Environment) Error!EvalResult {
+        var result = EvalResult{ .Return = null };
+        if (returnStmt.argument) |argument| {
+            var evalResult = try self.evalExpression(argument, env);
+            result = EvalResult{ .Return = &evalResult };
+        }
+
+        return result;
+    }
+
+    fn evalFunctionDeclaration(_: *Eva, functionDeclaration: Parser.FunctionDeclaration, env: *Environment) Error!EvalResult {
+        const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = try env.clone() };
+        try env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
+
+        return EvalResult{ .Null = {} };
     }
 
     fn evalForStatement(self: *Eva, forStmt: Parser.ForStatement, env: *Environment) Error!EvalResult {
@@ -190,6 +221,7 @@ pub const Eva = struct {
         for (callExp.arguments) |arg| {
             try args.append(try self.evalExpression(arg, env));
         }
+        const evaluatedArgs = try args.toOwnedSlice();
 
         if (callee != .Function) {
             return Error.VariableIsNotDefined;
@@ -197,8 +229,25 @@ pub const Eva = struct {
 
         switch (callee.Function) {
             .Native => |nativeFunc| {
-                try nativeFunc.call(try args.toOwnedSlice(), self.allocator);
+                return try nativeFunc.call(evaluatedArgs, self.allocator);
             },
+            .UserDefined => |userDefinedFunc| {
+                var activationEnv = Environment.init(self.allocator, try userDefinedFunc.env.clone());
+                for (userDefinedFunc.params, 0..) |param, i| {
+                    _ = try activationEnv.define(param.name, evaluatedArgs[i]);
+                }
+
+                return self.evalBody(userDefinedFunc.body, &activationEnv);
+            },
+        }
+    }
+
+    fn evalBody(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment) Error!EvalResult {
+        for (blockStmt.body) |stmt| {
+            const result = try self.eval(stmt, env);
+            if (result == .Return) {
+                return if (result.Return) |value| value.* else EvalResult{ .Null = {} };
+            }
         }
 
         return EvalResult{ .Null = {} };

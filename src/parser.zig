@@ -805,7 +805,6 @@ pub const Parser = struct {
     fn eat(self: *Parser, tokenType: Tokenizer.TokenType) !Tokenizer.Token {
         if (self.lookahead) |token| {
             if (token.type != tokenType) {
-                std.debug.print("{any}\n", .{token.type});
                 return Error.UnexpectedToken;
             }
 

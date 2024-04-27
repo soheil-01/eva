@@ -102,3 +102,18 @@ test "For" {
 test "Unary" {
     try testEvaluationOutput("!(2 > 1);", "false");
 }
+
+test "Function" {
+    try testEvaluationOutput(
+        \\ let value = 100;
+        \\ def calc(x, y){
+        \\   let z = x + y;
+        \\   def inner(foo){
+        \\   return foo + z + value;
+        \\}
+        \\  return inner;
+        \\}
+        \\let fn = calc(10, 20);
+        \\fn(30);
+    , "160");
+}

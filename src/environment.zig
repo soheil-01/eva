@@ -37,4 +37,11 @@ pub const Environment = struct {
 
         return Error.VariableIsNotDefined;
     }
+
+    pub fn clone(self: *Environment) !*Environment {
+        const newEnv = try self.allocator.create(Environment);
+        newEnv.* = Environment{ .allocator = self.allocator, .parent = if (self.parent) |parent| try parent.clone() else null, .record = try self.record.clone() };
+
+        return newEnv;
+    }
 };

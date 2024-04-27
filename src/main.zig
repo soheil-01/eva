@@ -3,11 +3,22 @@ const Eva = @import("eva.zig").Eva;
 const Parser = @import("parser.zig").Parser;
 
 pub fn main() !void {
-    const allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ print("hello");
+        \\ let value = 100;
+        \\ def calc(x, y){
+        \\   let z = x + y;
+        \\   def inner(foo){
+        \\   return foo + z + value;
+        \\}
+        \\  return inner;
+        \\}
+        \\let fn = calc(10, 20);
+        \\fn(30);
     );
 
     var eva = try Eva.init(allocator);
