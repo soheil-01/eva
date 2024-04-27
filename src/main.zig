@@ -9,7 +9,11 @@ pub fn main() !void {
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ (lambda (x) x * 2)(2);
+        \\ def fact(num) {
+        \\  if(num == 1) { return 1; }
+        \\  return num * fact(num - 1);
+        \\}
+        \\ fact(5);
     );
 
     var eva = try Eva.init(allocator);

@@ -110,6 +110,8 @@ pub const Eva = struct {
     fn evalFunctionDeclaration(_: *Eva, functionDeclaration: Parser.FunctionDeclaration, env: *Environment) Error!EvalResult {
         const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = try env.clone() };
         try env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
+        // TODO: find a better way to handle recursive calls
+        try function.env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
 
         return EvalResult{ .Null = {} };
     }
