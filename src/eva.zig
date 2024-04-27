@@ -232,7 +232,7 @@ pub const Eva = struct {
                 return try nativeFunc.call(evaluatedArgs, self.allocator);
             },
             .UserDefined => |userDefinedFunc| {
-                var activationEnv = Environment.init(self.allocator, try userDefinedFunc.env.clone());
+                var activationEnv = Environment.init(self.allocator, userDefinedFunc.env);
                 for (userDefinedFunc.params, 0..) |param, i| {
                     _ = try activationEnv.define(param.name, evaluatedArgs[i]);
                 }
