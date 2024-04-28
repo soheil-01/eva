@@ -11,7 +11,9 @@ pub const Parser = struct {
         return Parser{ .allocator = allocator };
     }
 
-    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput, InvalidLeftHandSideInAssignmentExpression, UnexpectedPrimaryExpression } || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
+    const SwitchError = error{MultipleDefaultCasesFound};
+
+    pub const Error = error{ UnexpectedToken, UnexpectedEndOfInput, InvalidLeftHandSideInAssignmentExpression, UnexpectedPrimaryExpression } || SwitchError || Tokenizer.Error || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
     // Parse a string into an AST.
     pub fn parse(self: *Parser, string: []const u8) Error!Program {
@@ -46,7 +48,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    pub const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration };
+    pub const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration, SwitchStatement: SwitchStatement };
 
     // Statement
     //  : ExpressionStatement
@@ -58,6 +60,7 @@ pub const Parser = struct {
     //  | FunctionDeclaration
     //  | ReturnStatement
     //  | ClassDeclaration
+    //  | SwitchStatement
     //  ;
     fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
@@ -70,6 +73,7 @@ pub const Parser = struct {
                 .Def => Statement{ .FunctionDeclaration = try self.functionDeclaration() },
                 .Return => Statement{ .ReturnStatement = try self.returnStatement() },
                 .Class => Statement{ .ClassDeclaration = try self.classDeclaration() },
+                .Switch => Statement{ .SwitchStatement = try self.switchStatement() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
@@ -145,6 +149,66 @@ pub const Parser = struct {
         _ = try self.eat(.SemiColon);
 
         return ReturnStatement{ .argument = argument };
+    }
+
+    pub const SwitchCase = struct { testE: ?Expression, consequent: BlockStatement };
+    pub const SwitchStatement = struct {
+        discriminant: Identifier,
+        cases: []SwitchCase,
+    };
+
+    // SwitchStatement
+    //  : 'switch' '(' Expression ')'
+    //  : '{' SwitchCases '}'
+    //  ;
+    fn switchStatement(self: *Parser) !SwitchStatement {
+        _ = try self.eat(.Switch);
+        _ = try self.eat(.OpenPran);
+
+        const discriminant = try self.identifier();
+
+        _ = try self.eat(.ClosePran);
+
+        _ = try self.eat(.OpenBrace);
+        const cases = try self.switchCases();
+        _ = try self.eat(.CloseBrace);
+
+        return SwitchStatement{ .discriminant = discriminant, .cases = cases };
+    }
+
+    // SwitchCases
+    fn switchCases(self: *Parser) ![]SwitchCase {
+        var cases = std.ArrayList(SwitchCase).init(self.allocator);
+        var defaultCasePresent = false;
+
+        while (self.lookahead.?.type == .Case or self.lookahead.?.type == .Default) {
+            const case = try self.switchCase();
+            if (case.testE == null) {
+                if (defaultCasePresent) return SwitchError.MultipleDefaultCasesFound;
+                defaultCasePresent = true;
+            }
+            try cases.append(case);
+        }
+
+        return cases.toOwnedSlice();
+    }
+
+    // SwitchCase
+    //  : 'case' Expression BlockStatement
+    //  | 'default' BlockStatement
+    //  ;
+    fn switchCase(self: *Parser) !SwitchCase {
+        var testE: ?Expression = null;
+
+        if (self.lookahead.?.type == .Case) {
+            _ = try self.eat(.Case);
+            testE = try self.expression();
+        } else {
+            _ = try self.eat(.Default);
+        }
+        const consequent = try self.blockStatement();
+
+        return SwitchCase{ .testE = testE, .consequent = consequent };
     }
 
     // IterationStatement

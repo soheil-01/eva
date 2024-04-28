@@ -237,3 +237,15 @@ test "Lambda" {
         \\{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"func"},"init":{"LambdaExpression":{"params":[],"body":{"BlockStatement":{"body":[{"ReturnStatement":{"argument":{"Literal":{"NumericLiteral":{"value":10}}}}}]}}}}}]}}]}
     );
 }
+
+test "Switch" {
+    try testParserOutput(
+        \\ switch(x) {
+        \\  case 10 {}
+        \\  case 20 {}
+        \\  default {}
+        \\}
+    ,
+        \\{"body":[{"SwitchStatement":{"discriminant":{"name":"x"},"cases":[{"testE":{"Literal":{"NumericLiteral":{"value":10}}},"consequent":{"body":[]}},{"testE":{"Literal":{"NumericLiteral":{"value":20}}},"consequent":{"body":[]}},{"testE":null,"consequent":{"body":[]}}]}}]}
+    );
+}

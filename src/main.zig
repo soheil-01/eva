@@ -8,17 +8,10 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     var parser = Parser.init(allocator);
-    const ast = try parser.parse(
-        \\ def fact(num) {
-        \\  if(num == 1) { return 1; }
-        \\  return num * fact(num - 1);
-        \\}
-        \\ fact(5);
-    );
+    const ast = try parser.parse("");
 
     var eva = try Eva.init(allocator);
     const result = try eva.evalProgram(ast);
-
     try result.display(allocator);
 
     // var args = std.process.args();
