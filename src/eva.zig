@@ -70,6 +70,28 @@ pub const Eva = struct {
         pub fn display(self: EvalResult, allocator: std.mem.Allocator) !void {
             std.debug.print("{s}\n", .{try self.toString(allocator)});
         }
+
+        pub fn eql(self: EvalResult, other: EvalResult) !bool {
+            return switch (self) {
+                .Number => switch (other) {
+                    .Number => self.Number == other.Number,
+                    else => false,
+                },
+                .String => switch (other) {
+                    .String => std.mem.eql(u8, self.String, other.String),
+                    else => false,
+                },
+                .Null => switch (other) {
+                    .Null => true,
+                    else => false,
+                },
+                .Bool => switch (other) {
+                    .Bool => self.Bool == other.Bool,
+                    else => false,
+                },
+                else => Error.InvalidOperandTypes,
+            };
+        }
     };
 
     pub fn evalProgram(self: *Eva, program: Parser.Program) Error!EvalResult {
@@ -93,8 +115,34 @@ pub const Eva = struct {
             .EmptyStatement => EvalResult{ .Null = {} },
             .FunctionDeclaration => |functionDeclaration| self.evalFunctionDeclaration(functionDeclaration, env),
             .ReturnStatement => |returnStmt| self.evalReturnStatement(returnStmt, env),
+            .SwitchStatement => |switchStmt| self.evalSwitchStatement(switchStmt, env),
             else => Error.UnimplementedStatement,
         };
+    }
+
+    fn evalSwitchStatement(self: *Eva, switchStmt: Parser.SwitchStatement, env: *Environment) Error!EvalResult {
+        const discriminantResult = try self.evalExpression(switchStmt.discriminant, env);
+        const defaultCase: ?Parser.SwitchCase = for (switchStmt.cases) |case| {
+            if (case.testE == null) {
+                break case;
+            }
+        } else null;
+
+        for (switchStmt.cases) |case| {
+            if (case.testE) |caseTestE| {
+                const testEResult = try self.evalExpression(caseTestE, env);
+                if (try discriminantResult.eql(testEResult)) {
+                    _ = try self.evalBlockStatement(case.consequent, env);
+                    return EvalResult{ .Null = {} };
+                }
+            }
+        }
+
+        if (defaultCase) |case| {
+            _ = try self.evalBlockStatement(case.consequent, env);
+        }
+
+        return EvalResult{ .Null = {} };
     }
 
     fn evalReturnStatement(self: *Eva, returnStmt: Parser.ReturnStatement, env: *Environment) Error!EvalResult {

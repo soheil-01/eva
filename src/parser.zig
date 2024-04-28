@@ -153,7 +153,7 @@ pub const Parser = struct {
 
     pub const SwitchCase = struct { testE: ?Expression, consequent: BlockStatement };
     pub const SwitchStatement = struct {
-        discriminant: Identifier,
+        discriminant: Expression,
         cases: []SwitchCase,
     };
 
@@ -165,7 +165,7 @@ pub const Parser = struct {
         _ = try self.eat(.Switch);
         _ = try self.eat(.OpenPran);
 
-        const discriminant = try self.identifier();
+        const discriminant = try self.expression();
 
         _ = try self.eat(.ClosePran);
 

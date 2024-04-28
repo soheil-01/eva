@@ -246,6 +246,6 @@ test "Switch" {
         \\  default {}
         \\}
     ,
-        \\{"body":[{"SwitchStatement":{"discriminant":{"name":"x"},"cases":[{"testE":{"Literal":{"NumericLiteral":{"value":10}}},"consequent":{"body":[]}},{"testE":{"Literal":{"NumericLiteral":{"value":20}}},"consequent":{"body":[]}},{"testE":null,"consequent":{"body":[]}}]}}]}
+        \\{"body":[{"SwitchStatement":{"discriminant":{"Identifier":{"name":"x"}},"cases":[{"testE":{"Literal":{"NumericLiteral":{"value":10}}},"consequent":{"body":[]}},{"testE":{"Literal":{"NumericLiteral":{"value":20}}},"consequent":{"body":[]}},{"testE":null,"consequent":{"body":[]}}]}}]}
     );
 }
