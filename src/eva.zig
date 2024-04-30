@@ -133,13 +133,11 @@ pub const Eva = struct {
         } else {
             parentEnv = env;
         }
-        var classEnv = Environment.init(self.allocator, parentEnv);
-        _ = try self.evalBlockStatement(classDeclaration.body, &classEnv, false);
+        const classEnv = try self.allocator.create(Environment);
+        classEnv.* = Environment.init(self.allocator, parentEnv);
+        _ = try self.evalBlockStatement(classDeclaration.body, classEnv, false);
 
-        const value = EvalResult{ .Env = try self.allocator.create(Environment) };
-        value.Env.* = classEnv;
-
-        try env.define(classDeclaration.id.name, value);
+        try env.define(classDeclaration.id.name, EvalResult{ .Env = classEnv });
 
         return EvalResult{ .Null = {} };
     }
@@ -262,8 +260,8 @@ pub const Eva = struct {
     fn evalBlockStatement(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment, shouldCreateNewEnvironment: bool) Error!EvalResult {
         var blockEnv: *Environment = env;
         if (shouldCreateNewEnvironment) {
-            var newEnv = Environment.init(self.allocator, env);
-            blockEnv = &newEnv;
+            blockEnv = try self.allocator.create(Environment);
+            blockEnv.* = Environment.init(self.allocator, env);
         }
 
         var result = EvalResult{ .Null = {} };
