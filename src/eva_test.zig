@@ -200,3 +200,44 @@ test "Switch" {
         \\answer;
     , "x is neither 10 nor 20");
 }
+
+test "Class" {
+    try testEvaluationOutput(
+        \\ class Point {
+        \\  def constructor(self, x, y){
+        \\  self.x = x;
+        \\  self.y = y;
+        \\}
+        \\  def calc(self){
+        \\  return self.x + self.y;
+        \\}
+        \\}
+        \\ let p = new Point(10,20);
+        \\ p.calc(p);
+    , "30");
+
+    try testEvaluationOutput(
+        \\ class Point {
+        \\  def constructor(self, x, y){
+        \\  self.x = x;
+        \\  self.y = y;
+        \\}
+        \\  def calc(self){
+        \\  return self.x + self.y;
+        \\}
+        \\}
+        \\
+        \\
+        \\ class Point3D extends Point {
+        \\  def constructor(self, x, y, y){
+        \\  super(Point3D).constructor(x, y);
+        \\  self.z = z;
+        \\}
+        \\  def calc(self){
+        \\  return super(Point3D).calc(self) + self.z;
+        \\}
+        \\}
+        \\ let p = new Point3D(10, 20, 30);
+        \\ p.calc(p);
+    , "60");
+}

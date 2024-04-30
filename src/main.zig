@@ -9,20 +9,7 @@ pub fn main() !void {
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ let x = 20;
-        \\ let answer = "";
-        \\ switch(x){
-        \\ case 10 {
-        \\  answer = "x is 10";
-        \\}
-        \\ case 20 {
-        \\ answer = "x is 20";
-        \\}
-        \\ default {
-        \\ answer = "x is neither 10 nor 20";
-        \\}
-        \\}
-        \\answer;
+        \\
     );
 
     var eva = try Eva.init(allocator);

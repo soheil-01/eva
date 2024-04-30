@@ -14,7 +14,7 @@ pub const Eva = struct {
         return Eva{ .allocator = allocator, .global = global };
     }
 
-    pub const Error = error{ InvalidOperandTypes, UnimplementedStatement, UnimplementedExpression } || Environment.Error || std.mem.Allocator.Error;
+    pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error;
 
     const NativeFunction = union(enum) {
         Print,
@@ -53,6 +53,7 @@ pub const Eva = struct {
         Bool: bool,
         Function: Function,
         Return: ?*EvalResult,
+        Env: *Environment,
 
         pub fn toString(self: EvalResult, allocator: std.mem.Allocator) ![]u8 {
             return switch (self) {
@@ -61,6 +62,7 @@ pub const Eva = struct {
                 .Null => std.fmt.allocPrint(allocator, "null", .{}),
                 .Bool => |boolean| std.fmt.allocPrint(allocator, "{}", .{boolean}),
                 .Function => std.fmt.allocPrint(allocator, "<fn>", .{}),
+                .Env => std.fmt.allocPrint(allocator, "<env>", .{}),
                 .Return => {
                     unreachable;
                 },
@@ -107,7 +109,7 @@ pub const Eva = struct {
         return switch (statement) {
             .ExpressionStatement => |exprStmt| self.evalExpression(exprStmt.expression, env),
             .VariableStatement => |varStmt| self.evalVariableStatement(varStmt, env),
-            .BlockStatement => |blockStmt| self.evalBlockStatement(blockStmt, env),
+            .BlockStatement => |blockStmt| self.evalBlockStatement(blockStmt, env, true),
             .IfStatement => |ifStmt| self.evalIfStatement(ifStmt, env),
             .WhileStatement => |whileStmt| self.evalWhileStatement(whileStmt, env),
             .DoWhileStatement => |doWhileStmt| self.evalDoWhileStatement(doWhileStmt, env),
@@ -116,8 +118,27 @@ pub const Eva = struct {
             .FunctionDeclaration => |functionDeclaration| self.evalFunctionDeclaration(functionDeclaration, env),
             .ReturnStatement => |returnStmt| self.evalReturnStatement(returnStmt, env),
             .SwitchStatement => |switchStmt| self.evalSwitchStatement(switchStmt, env),
-            else => Error.UnimplementedStatement,
+            .ClassDeclaration => |classDeclaration| self.evalClassDeclaration(classDeclaration, env),
         };
+    }
+
+    fn evalClassDeclaration(self: *Eva, classDeclaration: Parser.ClassDeclaration, env: *Environment) Error!EvalResult {
+        var parentEnv: *Environment = undefined;
+        if (classDeclaration.superClass) |superClass| {
+            const result = try env.lookup(superClass.name);
+            if (result != .Env) {
+                return Error.ClassNotAnEnvironment;
+            }
+            parentEnv = result.Env;
+        } else {
+            parentEnv = env;
+        }
+        const classEnv = Environment.init(self.allocator, parentEnv);
+
+        _ = try self.evalBlockStatement(classDeclaration.body, &classEnv, false);
+        try env.define(classDeclaration.id.name, EvalResult{ .Env = &classEnv });
+
+        return EvalResult{ .Null = {} };
     }
 
     fn evalSwitchStatement(self: *Eva, switchStmt: Parser.SwitchStatement, env: *Environment) Error!EvalResult {
@@ -132,14 +153,14 @@ pub const Eva = struct {
             if (case.testE) |caseTestE| {
                 const testEResult = try self.evalExpression(caseTestE, env);
                 if (try discriminantResult.eql(testEResult)) {
-                    _ = try self.evalBlockStatement(case.consequent, env);
+                    _ = try self.evalBlockStatement(case.consequent, env, true);
                     return EvalResult{ .Null = {} };
                 }
             }
         }
 
         if (defaultCase) |case| {
-            _ = try self.evalBlockStatement(case.consequent, env);
+            _ = try self.evalBlockStatement(case.consequent, env, true);
         }
 
         return EvalResult{ .Null = {} };
@@ -156,7 +177,7 @@ pub const Eva = struct {
     }
 
     fn evalFunctionDeclaration(_: *Eva, functionDeclaration: Parser.FunctionDeclaration, env: *Environment) Error!EvalResult {
-        const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = try env.clone() };
+        const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = env };
         try env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
         // TODO: find a better way to handle recursive calls
         try function.env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
@@ -236,11 +257,16 @@ pub const Eva = struct {
         return EvalResult{ .Null = {} };
     }
 
-    fn evalBlockStatement(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment) Error!EvalResult {
-        var blockEnv = Environment.init(self.allocator, env);
+    fn evalBlockStatement(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment, shouldCreateNewEnvironment: bool) Error!EvalResult {
+        var blockEnv: *Environment = env;
+        if (shouldCreateNewEnvironment) {
+            var newEnv = Environment.init(self.allocator, env);
+            blockEnv = &newEnv;
+        }
+
         var result = EvalResult{ .Null = {} };
         for (blockStmt.body) |stmt| {
-            result = try self.eval(stmt, &blockEnv);
+            result = try self.eval(stmt, blockEnv);
         }
 
         return result;
@@ -263,22 +289,71 @@ pub const Eva = struct {
             .UnaryExpression => |unaryExp| self.evalUnaryExpression(unaryExp, env),
             .CallExpression => |callExp| self.evalCallExpression(callExp, env),
             .LambdaExpression => |lambdaExp| self.evalLambdaExpression(lambdaExp, env),
-            else => Error.UnimplementedExpression,
+            .NewExpression => |newExp| self.evalNewExpression(newExp, env),
+            .MemberExpression => |memberExp| self.evalMemberExpression(memberExp, env),
+            .Super => |super| self.evalSuper(super, env),
+            .LogicalExpression => |logicalExp| {
+                _ = logicalExp;
+                unreachable;
+            },
         };
     }
 
+    fn evalSuper(_: *Eva, super: Parser.Super, env: *Environment) Error!EvalResult {
+        const envResult = try env.lookup(super.className.name);
+        if (envResult != .Env) {
+            return Error.ClassNotAnEnvironment;
+        }
+        if (envResult.Env.parent) |parentEnv| {
+            return EvalResult{ .Env = parentEnv };
+        }
+
+        return Error.VariableIsNotDefined;
+    }
+
+    fn evalMemberExpression(self: *Eva, memberExp: Parser.MemberExpression, env: *Environment) Error!EvalResult {
+        if (memberExp.computed) {
+            return Error.ComputedPropertyAccessNotSupported;
+        }
+        const object = try self.evalExpression(memberExp.object.*, env);
+        if (object != .Env) {
+            return Error.InvalidObject;
+        }
+        const property = memberExp.property.Identifier;
+
+        return object.Env.lookup(property.name);
+    }
+
+    fn evalNewExpression(self: *Eva, newExp: Parser.NewExpression, env: *Environment) Error!EvalResult {
+        const classEnvResult = try self.evalExpression(newExp.callee.*, env);
+        if (classEnvResult != .Env) {
+            return Error.ClassNotAnEnvironment;
+        }
+        const classEnv = classEnvResult.Env;
+
+        var newEnv = Environment.init(self.allocator, classEnv);
+        const instanceEnvResult = EvalResult{ .Env = &newEnv };
+
+        const constructorFnResult = try classEnv.lookup("constructor");
+        if (constructorFnResult != .Function) {
+            return Error.ConstructorNotFound;
+        }
+        const constructorFn = constructorFnResult.Function.UserDefined;
+        const args: []EvalResult = try std.mem.concat(self.allocator, EvalResult, &.{ &[_]EvalResult{instanceEnvResult}, try self.evalArgs(newExp.arguments, env) });
+
+        _ = try self.callUserDefinedFunction(constructorFn, args);
+
+        return instanceEnvResult;
+    }
+
     fn evalLambdaExpression(_: *Eva, lambdaExp: Parser.LambdaExpression, env: *Environment) Error!EvalResult {
-        return EvalResult{ .Function = .{ .Lambda = .{ .params = lambdaExp.params, .body = lambdaExp.body, .env = try env.clone() } } };
+        return EvalResult{ .Function = .{ .Lambda = .{ .params = lambdaExp.params, .body = lambdaExp.body, .env = env } } };
     }
 
     fn evalCallExpression(self: *Eva, callExp: Parser.CallExpression, env: *Environment) Error!EvalResult {
         const callee = try self.evalExpression(callExp.callee.*, env);
 
-        var args = std.ArrayList(EvalResult).init(self.allocator);
-        for (callExp.arguments) |arg| {
-            try args.append(try self.evalExpression(arg, env));
-        }
-        const evaluatedArgs = try args.toOwnedSlice();
+        const evaluatedArgs = try self.evalArgs(callExp.arguments, env);
 
         if (callee != .Function) {
             return Error.VariableIsNotDefined;
@@ -289,12 +364,7 @@ pub const Eva = struct {
                 return try nativeFunc.call(evaluatedArgs, self.allocator);
             },
             .UserDefined => |userDefinedFunc| {
-                var activationEnv = Environment.init(self.allocator, userDefinedFunc.env);
-                for (userDefinedFunc.params, 0..) |param, i| {
-                    _ = try activationEnv.define(param.name, evaluatedArgs[i]);
-                }
-
-                return self.evalBody(userDefinedFunc.body, &activationEnv);
+                return self.callUserDefinedFunction(userDefinedFunc, evaluatedArgs);
             },
             .Lambda => |lambdaFunc| {
                 var activationEnv = Environment.init(self.allocator, lambdaFunc.env);
@@ -303,14 +373,32 @@ pub const Eva = struct {
                 }
 
                 return switch (lambdaFunc.body) {
-                    .BlockStatement => self.evalBody(lambdaFunc.body.BlockStatement, &activationEnv),
+                    .BlockStatement => self.evalFunctionBody(lambdaFunc.body.BlockStatement, &activationEnv),
                     .Expression => self.evalExpression(lambdaFunc.body.Expression.*, &activationEnv),
                 };
             },
         }
     }
 
-    fn evalBody(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment) Error!EvalResult {
+    fn evalArgs(self: *Eva, args: []Parser.Expression, env: *Environment) ![]EvalResult {
+        var evaluatedArgs = std.ArrayList(EvalResult).init(self.allocator);
+        for (args) |arg| {
+            try evaluatedArgs.append(try self.evalExpression(arg, env));
+        }
+
+        return evaluatedArgs.toOwnedSlice();
+    }
+
+    fn callUserDefinedFunction(self: *Eva, userDefinedFunc: UserDefinedFunction, evaluatedArgs: []EvalResult) Error!EvalResult {
+        var activationEnv = Environment.init(self.allocator, userDefinedFunc.env);
+        for (userDefinedFunc.params, 0..) |param, i| {
+            _ = try activationEnv.define(param.name, evaluatedArgs[i]);
+        }
+
+        return self.evalFunctionBody(userDefinedFunc.body, &activationEnv);
+    }
+
+    fn evalFunctionBody(self: *Eva, blockStmt: Parser.BlockStatement, env: *Environment) Error!EvalResult {
         for (blockStmt.body) |stmt| {
             const result = try self.eval(stmt, env);
             if (result == .Return) {
@@ -363,6 +451,20 @@ pub const Eva = struct {
                     .Identifier => |identifier| {
                         const value = try self.evalExpression(right, env);
                         try env.assign(identifier.name, value);
+                        return value;
+                    },
+                    .MemberExpression => |memberExp| {
+                        if (memberExp.computed) {
+                            return Error.ComputedPropertyAccessNotSupported;
+                        }
+                        const object = try self.evalExpression(memberExp.object.*, env);
+                        if (object != .Env) {
+                            return Error.InvalidObject;
+                        }
+                        const property = memberExp.property.Identifier;
+                        const value = try self.evalExpression(right, env);
+
+                        try object.Env.define(property.name, value);
                         return value;
                     },
                     else => {

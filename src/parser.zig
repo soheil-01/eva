@@ -434,7 +434,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, ThisExpression: ThisExpression, Super: Super, NewExpression: NewExpression, LambdaExpression: LambdaExpression };
+    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, Super: Super, NewExpression: NewExpression, LambdaExpression: LambdaExpression };
 
     // Expression
     //  : AssignmentExpression
@@ -628,11 +628,6 @@ pub const Parser = struct {
     //  | CallExpression
     //  ;
     fn callMemberExpression(self: *Parser) !Expression {
-        // Super call
-        if (self.lookahead.?.type == .Super) {
-            return self.callExpression(Expression{ .Super = try self.super() });
-        }
-
         const member = try self.memberExpression();
 
         if (self.lookahead.?.type == .OpenPran) {
@@ -721,24 +716,20 @@ pub const Parser = struct {
         return object;
     }
 
-    pub const ThisExpression = struct {};
-
-    // ThisExpression
-    //  : 'this'
-    //  ;
-    fn thisExpression(self: *Parser) !ThisExpression {
-        _ = try self.eat(.This);
-        return ThisExpression{};
-    }
-
-    pub const Super = struct {};
+    pub const Super = struct { className: Identifier };
 
     // Super
-    //  : 'super'
+    //  : 'super' '(' Identifier ')'
     //  ;
     fn super(self: *Parser) !Super {
         _ = try self.eat(.Super);
-        return Super{};
+        _ = try self.eat(.OpenPran);
+
+        const className = try self.identifier();
+
+        _ = try self.eat(.ClosePran);
+
+        return Super{ .className = className };
     }
 
     pub const NewExpression = struct { callee: *Expression, arguments: []Expression };
@@ -779,7 +770,6 @@ pub const Parser = struct {
     //  : Literal
     //  | ParenthesizedExpression
     //  | Identifier
-    //  | ThisExpression
     //  | NewExpression
     //  | LambdaExpression
     //  ;
@@ -792,9 +782,9 @@ pub const Parser = struct {
             return switch (lookahead.type) {
                 .OpenPran => self.parenthesizedExpression(),
                 .Identifier => Expression{ .Identifier = try self.identifier() },
-                .This => Expression{ .ThisExpression = try self.thisExpression() },
                 .New => Expression{ .NewExpression = try self.newExpression() },
                 .Lambda => Expression{ .LambdaExpression = try self.lambdaExpression() },
+                .Super => Expression{ .Super = try self.super() },
                 else => Error.UnexpectedPrimaryExpression,
             };
         }

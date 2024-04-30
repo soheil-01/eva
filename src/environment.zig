@@ -44,4 +44,11 @@ pub const Environment = struct {
 
         return newEnv;
     }
+
+    pub fn createChild(self: *Environment) !*Environment {
+        const env = try self.allocator.create(Environment);
+        env.* = Environment.init(self.allocator, self);
+
+        return env;
+    }
 };
