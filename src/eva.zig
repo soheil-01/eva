@@ -133,10 +133,13 @@ pub const Eva = struct {
         } else {
             parentEnv = env;
         }
-        const classEnv = Environment.init(self.allocator, parentEnv);
-
+        var classEnv = Environment.init(self.allocator, parentEnv);
         _ = try self.evalBlockStatement(classDeclaration.body, &classEnv, false);
-        try env.define(classDeclaration.id.name, EvalResult{ .Env = &classEnv });
+
+        const value = EvalResult{ .Env = try self.allocator.create(Environment) };
+        value.Env.* = classEnv;
+
+        try env.define(classDeclaration.id.name, value);
 
         return EvalResult{ .Null = {} };
     }
@@ -176,11 +179,10 @@ pub const Eva = struct {
         return result;
     }
 
-    fn evalFunctionDeclaration(_: *Eva, functionDeclaration: Parser.FunctionDeclaration, env: *Environment) Error!EvalResult {
-        const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = env };
+    fn evalFunctionDeclaration(self: *Eva, functionDeclaration: Parser.FunctionDeclaration, env: *Environment) Error!EvalResult {
+        const function = UserDefinedFunction{ .params = functionDeclaration.params, .body = functionDeclaration.body, .env = try self.allocator.create(Environment) };
+        function.env.* = env.*;
         try env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
-        // TODO: find a better way to handle recursive calls
-        try function.env.define(functionDeclaration.name.name, EvalResult{ .Function = .{ .UserDefined = function } });
 
         return EvalResult{ .Null = {} };
     }
@@ -292,6 +294,7 @@ pub const Eva = struct {
             .NewExpression => |newExp| self.evalNewExpression(newExp, env),
             .MemberExpression => |memberExp| self.evalMemberExpression(memberExp, env),
             .Super => |super| self.evalSuper(super, env),
+            // TODO: Logical Expression
             .LogicalExpression => |logicalExp| {
                 _ = logicalExp;
                 unreachable;
@@ -331,8 +334,9 @@ pub const Eva = struct {
         }
         const classEnv = classEnvResult.Env;
 
-        var newEnv = Environment.init(self.allocator, classEnv);
-        const instanceEnvResult = EvalResult{ .Env = &newEnv };
+        const newEnv = Environment.init(self.allocator, classEnv);
+        const instanceEnvResult = EvalResult{ .Env = try self.allocator.create(Environment) };
+        instanceEnvResult.Env.* = newEnv;
 
         const constructorFnResult = try classEnv.lookup("constructor");
         if (constructorFnResult != .Function) {
@@ -346,8 +350,11 @@ pub const Eva = struct {
         return instanceEnvResult;
     }
 
-    fn evalLambdaExpression(_: *Eva, lambdaExp: Parser.LambdaExpression, env: *Environment) Error!EvalResult {
-        return EvalResult{ .Function = .{ .Lambda = .{ .params = lambdaExp.params, .body = lambdaExp.body, .env = env } } };
+    fn evalLambdaExpression(self: *Eva, lambdaExp: Parser.LambdaExpression, env: *Environment) Error!EvalResult {
+        const function = LambdaFunction{ .params = lambdaExp.params, .body = lambdaExp.body, .env = try self.allocator.create(Environment) };
+        function.env.* = env.*;
+
+        return EvalResult{ .Function = .{ .Lambda = function } };
     }
 
     fn evalCallExpression(self: *Eva, callExp: Parser.CallExpression, env: *Environment) Error!EvalResult {

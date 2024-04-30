@@ -227,10 +227,9 @@ test "Class" {
         \\}
         \\}
         \\
-        \\
         \\ class Point3D extends Point {
-        \\  def constructor(self, x, y, y){
-        \\  super(Point3D).constructor(x, y);
+        \\  def constructor(self, x, y, z){
+        \\  super(Point3D).constructor(self, x, y);
         \\  self.z = z;
         \\}
         \\  def calc(self){
