@@ -195,29 +195,29 @@ test "Call Expression" {
 test "Class" {
     try testParserOutput(
         \\ class Point {
-        \\  def constructor(x, y){
-        \\  this.x = x;
-        \\  this.y = y;
+        \\  def constructor(self, x, y){
+        \\  self.x = x;
+        \\  self.y = y;
         \\}
-        \\  def calc(){
-        \\  return this.x + this.y;
+        \\  def calc(self){
+        \\  return self.x + self.y;
         \\}
         \\}
     ,
-        \\{"body":[{"ClassDeclaration":{"id":{"name":"Point"},"superClass":null,"body":{"body":[{"FunctionDeclaration":{"name":{"name":"constructor"},"params":[{"name":"x"},{"name":"y"}],"body":{"body":[{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"x"}}}},"right":{"Identifier":{"name":"x"}}}}}},{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"y"}}}},"right":{"Identifier":{"name":"y"}}}}}}]}}},{"FunctionDeclaration":{"name":{"name":"calc"},"params":[],"body":{"body":[{"ReturnStatement":{"argument":{"BinaryExpression":{"operator":{"type":"AdditiveOperator","value":"+"},"left":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"x"}}}},"right":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"y"}}}}}}}}]}}}]}}}]}
+        \\{"body":[{"ClassDeclaration":{"id":{"name":"Point"},"superClass":null,"body":{"body":[{"FunctionDeclaration":{"name":{"name":"constructor"},"params":[{"name":"self"},{"name":"x"},{"name":"y"}],"body":{"body":[{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"x"}}}},"right":{"Identifier":{"name":"x"}}}}}},{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"y"}}}},"right":{"Identifier":{"name":"y"}}}}}}]}}},{"FunctionDeclaration":{"name":{"name":"calc"},"params":[{"name":"self"}],"body":{"body":[{"ReturnStatement":{"argument":{"BinaryExpression":{"operator":{"type":"AdditiveOperator","value":"+"},"left":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"x"}}}},"right":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"y"}}}}}}}}]}}}]}}}]}
     );
     try testParserOutput(
         \\ class Point3D extends Point {
-        \\  def constructor(x,y,z){
-        \\  super(x,y);
-        \\  this.z = z;
+        \\  def constructor(self,x,y,z){
+        \\  super(Point3D).constructor(x,y);
+        \\  self.z = z;
         \\}
         \\  def calc(){
-        \\  return super() + this.z;
+        \\  return super(Point3D).calc() + self.z;
         \\}
         \\}
     ,
-        \\{"body":[{"ClassDeclaration":{"id":{"name":"Point3D"},"superClass":{"name":"Point"},"body":{"body":[{"FunctionDeclaration":{"name":{"name":"constructor"},"params":[{"name":"x"},{"name":"y"},{"name":"z"}],"body":{"body":[{"ExpressionStatement":{"expression":{"CallExpression":{"callee":{"Super":{}},"arguments":[{"Identifier":{"name":"x"}},{"Identifier":{"name":"y"}}]}}}},{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"z"}}}},"right":{"Identifier":{"name":"z"}}}}}}]}}},{"FunctionDeclaration":{"name":{"name":"calc"},"params":[],"body":{"body":[{"ReturnStatement":{"argument":{"BinaryExpression":{"operator":{"type":"AdditiveOperator","value":"+"},"left":{"CallExpression":{"callee":{"Super":{}},"arguments":[]}},"right":{"MemberExpression":{"computed":false,"object":{"ThisExpression":{}},"property":{"Identifier":{"name":"z"}}}}}}}}]}}}]}}}]}
+        \\{"body":[{"ClassDeclaration":{"id":{"name":"Point3D"},"superClass":{"name":"Point"},"body":{"body":[{"FunctionDeclaration":{"name":{"name":"constructor"},"params":[{"name":"self"},{"name":"x"},{"name":"y"},{"name":"z"}],"body":{"body":[{"ExpressionStatement":{"expression":{"CallExpression":{"callee":{"MemberExpression":{"computed":false,"object":{"Super":{"className":{"name":"Point3D"}}},"property":{"Identifier":{"name":"constructor"}}}},"arguments":[{"Identifier":{"name":"x"}},{"Identifier":{"name":"y"}}]}}}},{"ExpressionStatement":{"expression":{"AssignmentExpression":{"operator":{"type":"SimpleAssign","value":"="},"left":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"z"}}}},"right":{"Identifier":{"name":"z"}}}}}}]}}},{"FunctionDeclaration":{"name":{"name":"calc"},"params":[],"body":{"body":[{"ReturnStatement":{"argument":{"BinaryExpression":{"operator":{"type":"AdditiveOperator","value":"+"},"left":{"CallExpression":{"callee":{"MemberExpression":{"computed":false,"object":{"Super":{"className":{"name":"Point3D"}}},"property":{"Identifier":{"name":"calc"}}}},"arguments":[]}},"right":{"MemberExpression":{"computed":false,"object":{"Identifier":{"name":"self"}},"property":{"Identifier":{"name":"z"}}}}}}}}]}}}]}}}]}
     );
 
     try testParserOutput(
