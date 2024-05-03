@@ -249,3 +249,21 @@ test "Switch" {
         \\{"body":[{"SwitchStatement":{"discriminant":{"Identifier":{"name":"x"}},"cases":[{"testE":{"Literal":{"NumericLiteral":{"value":10}}},"consequent":{"body":[]}},{"testE":{"Literal":{"NumericLiteral":{"value":20}}},"consequent":{"body":[]}},{"testE":null,"consequent":{"body":[]}}]}}]}
     );
 }
+
+test "Module" {
+    try testParserOutput(
+        \\ module Math {
+        \\  let x = 2;
+        \\}
+    ,
+        \\{"body":[{"ModuleDeclaration":{"name":{"name":"Math"},"body":{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"x"},"init":{"Literal":{"NumericLiteral":{"value":2}}}}]}}]}}}]}
+    );
+}
+
+test "Import" {
+    try testParserOutput(
+        \\ let Math = import("math");
+    ,
+        \\{"body":[{"VariableStatement":{"declarations":[{"id":{"name":"Math"},"init":{"Import":{"name":{"value":"math"}}}}]}}]}
+    );
+}

@@ -48,7 +48,7 @@ pub const Parser = struct {
         return _statementList.toOwnedSlice();
     }
 
-    pub const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration, SwitchStatement: SwitchStatement };
+    pub const Statement = union(enum) { ExpressionStatement: ExpressionStatement, BlockStatement: BlockStatement, EmptyStatement: EmptyStatement, VariableStatement: VariableStatement, IfStatement: IfStatement, WhileStatement: WhileStatement, DoWhileStatement: DoWhileStatement, ForStatement: ForStatement, FunctionDeclaration: FunctionDeclaration, ReturnStatement: ReturnStatement, ClassDeclaration: ClassDeclaration, SwitchStatement: SwitchStatement, ModuleDeclaration: ModuleDeclaration };
 
     // Statement
     //  : ExpressionStatement
@@ -61,6 +61,7 @@ pub const Parser = struct {
     //  | ReturnStatement
     //  | ClassDeclaration
     //  | SwitchStatement
+    //  | ModuleDeclaration
     //  ;
     fn statement(self: *Parser) Error!Statement {
         if (self.lookahead) |lookahead| {
@@ -74,6 +75,7 @@ pub const Parser = struct {
                 .Return => Statement{ .ReturnStatement = try self.returnStatement() },
                 .Class => Statement{ .ClassDeclaration = try self.classDeclaration() },
                 .Switch => Statement{ .SwitchStatement = try self.switchStatement() },
+                .Module => Statement{ .ModuleDeclaration = try self.moduleDeclaration() },
                 else => Statement{ .ExpressionStatement = try self.expressionStatement() },
             };
         }
@@ -81,10 +83,24 @@ pub const Parser = struct {
         return Error.UnexpectedEndOfInput;
     }
 
+    pub const ModuleDeclaration = struct { name: Identifier, body: BlockStatement };
+
+    // ModuleDeclaration
+    //  'module' Identifier BlockStatement
+    //  ;
+    fn moduleDeclaration(self: *Parser) !ModuleDeclaration {
+        _ = try self.eat(.Module);
+        const name = try self.identifier();
+        const body = try self.blockStatement();
+
+        return ModuleDeclaration{ .name = name, .body = body };
+    }
+
     pub const ClassDeclaration = struct { id: Identifier, superClass: ?Identifier, body: BlockStatement };
 
     // ClassDeclaration
     //  : 'class' Identifier OptClassExtends BlockStatement
+    //  ;
     fn classDeclaration(self: *Parser) !ClassDeclaration {
         _ = try self.eat(.Class);
 
@@ -434,7 +450,7 @@ pub const Parser = struct {
         return ExpressionStatement{ .expression = _expression };
     }
 
-    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, Super: Super, NewExpression: NewExpression, LambdaExpression: LambdaExpression };
+    pub const Expression = union(enum) { Literal: Literal, Identifier: Identifier, BinaryExpression: BinaryExpression, AssignmentExpression: AssignmentExpression, LogicalExpression: LogicalExpression, UnaryExpression: UnaryExpression, MemberExpression: MemberExpression, CallExpression: CallExpression, Super: Super, NewExpression: NewExpression, LambdaExpression: LambdaExpression, Import: Import };
 
     // Expression
     //  : AssignmentExpression
@@ -749,6 +765,9 @@ pub const Parser = struct {
     pub const LambdaExpressionBody = union(enum) { Expression: *Expression, BlockStatement: BlockStatement };
     pub const LambdaExpression = struct { params: []Identifier, body: LambdaExpressionBody };
 
+    // LambdaExpression
+    //  : 'lambda' '(' OptFormalParameterList ')' LambdaExpressionBody
+    //  ;
     fn lambdaExpression(self: *Parser) !LambdaExpression {
         _ = try self.eat(.Lambda);
         _ = try self.eat(.OpenPran);
@@ -766,12 +785,32 @@ pub const Parser = struct {
         return LambdaExpression{ .params = params, .body = body };
     }
 
+    const Import = struct {
+        name: StringLiteral,
+    };
+
+    // Import
+    //  : import '(' StringLiteral ')'
+    //  ;
+    fn import(self: *Parser) !Import {
+        _ = try self.eat(.Import);
+        _ = try self.eat(.OpenPran);
+
+        const name = try self.stringLiteral();
+
+        _ = try self.eat(.ClosePran);
+
+        return Import{ .name = name };
+    }
+
     // PrimaryExpression
     //  : Literal
     //  | ParenthesizedExpression
     //  | Identifier
     //  | NewExpression
     //  | LambdaExpression
+    //  | Super
+    //  | Import
     //  ;
     fn primaryExpression(self: *Parser) !Expression {
         if (try self.isLiteral()) {
@@ -785,6 +824,7 @@ pub const Parser = struct {
                 .New => Expression{ .NewExpression = try self.newExpression() },
                 .Lambda => Expression{ .LambdaExpression = try self.lambdaExpression() },
                 .Super => Expression{ .Super = try self.super() },
+                .Import => Expression{ .Import = try self.import() },
                 else => Error.UnexpectedPrimaryExpression,
             };
         }

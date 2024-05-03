@@ -9,12 +9,12 @@ pub fn main() !void {
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ (false || true) && true;
+        \\ let Math = import("math");
     );
 
-    var eva = try Eva.init(allocator);
-    const result = try eva.evalProgram(ast);
-    try result.display(allocator);
+    // var eva = try Eva.init(allocator);
+    // const result = try eva.evalProgram(ast);
+    // try result.display(allocator);
 
     // var args = std.process.args();
     // _ = args.next();
@@ -34,6 +34,6 @@ pub fn main() !void {
     // var parser = Parser.init(allocator);
     // const ast = try parser.parse(codes);
 
-    // const string = try std.json.stringifyAlloc(allocator, ast, .{});
-    // std.debug.print("{s}\n", .{string});
+    const string = try std.json.stringifyAlloc(allocator, ast, .{});
+    std.debug.print("{s}\n", .{string});
 }
