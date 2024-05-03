@@ -1,15 +1,15 @@
 class Point {
 
-    def constructor(x,y){
-        this.x = x;
-        this.y = y;
+    def constructor(self,x,y){
+        self.x = x;
+        self.y = y;
     }
 
-    def calc(){
-        return this.x + this.y;
+    def calc(self){
+        return self.x + self.y;
     }
 
 }
 
 let point = new Point(1,2);
-console.log(point.calc());
+point.calc(point);
