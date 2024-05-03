@@ -867,14 +867,14 @@ pub const Parser = struct {
         return StringLiteral{ .value = token.value[1 .. token.value.len - 1] };
     }
 
-    pub const NumberLiteral = struct { value: u64 };
+    pub const NumberLiteral = struct { value: i64 };
 
     // NumericLiteral
     // : Number
     // ;
     fn numericLiteral(self: *Parser) !NumberLiteral {
         const token = try self.eat(.Number);
-        const number = try std.fmt.parseUnsigned(u64, token.value, 10);
+        const number = try std.fmt.parseUnsigned(i64, token.value, 10);
         return NumberLiteral{ .value = number };
     }
 

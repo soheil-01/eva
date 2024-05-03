@@ -47,7 +47,7 @@ pub const Eva = struct {
     const Function = union(enum) { Native: NativeFunction, UserDefined: UserDefinedFunction, Lambda: LambdaFunction };
 
     pub const EvalResult = union(enum) {
-        Number: u64,
+        Number: i64,
         String: []const u8,
         Null: void,
         Bool: bool,
@@ -433,8 +433,7 @@ pub const Eva = struct {
 
                 return switch (operator.value[0]) {
                     '+' => argument,
-                    // TODO: Add support for negative numbers
-                    //'-' => EvalResult{ .Number = -argument.Number },
+                    '-' => EvalResult{ .Number = -argument.Number },
                     else => {
                         unreachable;
                     },
@@ -498,7 +497,7 @@ pub const Eva = struct {
                     '+' => EvalResult{ .Number = left.Number + right.Number },
                     '-' => EvalResult{ .Number = left.Number - right.Number },
                     '*' => EvalResult{ .Number = left.Number * right.Number },
-                    '/' => EvalResult{ .Number = left.Number / right.Number },
+                    '/' => EvalResult{ .Number = @divFloor(left.Number, right.Number) },
                     else => {
                         unreachable;
                     },

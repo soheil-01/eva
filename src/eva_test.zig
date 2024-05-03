@@ -101,6 +101,7 @@ test "For" {
 
 test "Unary" {
     try testEvaluationOutput("!(2 > 1);", "false");
+    try testEvaluationOutput("6 / -2;", "-4");
 }
 
 test "Function" {

@@ -9,27 +9,7 @@ pub fn main() !void {
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ class Point {
-        \\  def constructor(self, x, y){
-        \\  self.x = x;
-        \\  self.y = y;
-        \\}
-        \\  def calc(self){
-        \\  return self.x + self.y;
-        \\}
-        \\}
-        \\
-        \\ class Point3D extends Point {
-        \\  def constructor(self, x, y, z){
-        \\  super(Point3D).constructor(self, x, y);
-        \\  self.z = z;
-        \\}
-        \\  def calc(self){
-        \\  return super(Point3D).calc(self) + self.z;
-        \\}
-        \\}
-        \\ let p = new Point3D(10, 20, 30);
-        \\ p.calc(p);
+        \\ -2;
     );
 
     var eva = try Eva.init(allocator);
