@@ -1,6 +1,6 @@
 .{
     .name = "zig-rdp",
-    .version = "0.0.1",
+    .version = "0.0.2",
     .dependencies = .{
         .regex = .{
             .url = "git+https://github.com/tiehuis/zig-regex#master",
