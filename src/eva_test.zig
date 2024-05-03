@@ -101,7 +101,7 @@ test "For" {
 
 test "Unary" {
     try testEvaluationOutput("!(2 > 1);", "false");
-    try testEvaluationOutput("6 / -2;", "-4");
+    try testEvaluationOutput("6 / -2;", "-3");
 }
 
 test "Function" {
@@ -240,4 +240,8 @@ test "Class" {
         \\ let p = new Point3D(10, 20, 30);
         \\ p.calc(p);
     , "60");
+}
+
+test "Logical" {
+    try testEvaluationOutput("5 > 3 && 4 < 3 || 5 > 2;", "true");
 }

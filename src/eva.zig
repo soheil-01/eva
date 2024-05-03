@@ -292,9 +292,23 @@ pub const Eva = struct {
             .NewExpression => |newExp| self.evalNewExpression(newExp, env),
             .MemberExpression => |memberExp| self.evalMemberExpression(memberExp, env),
             .Super => |super| self.evalSuper(super, env),
-            // TODO: Logical Expression
-            .LogicalExpression => |logicalExp| {
-                _ = logicalExp;
+            .LogicalExpression => |logicalExp| self.evalLogicalExpression(logicalExp, env),
+        };
+    }
+
+    fn evalLogicalExpression(self: *Eva, logicalExp: Parser.LogicalExpression, env: *Environment) Error!EvalResult {
+        const left = try self.evalExpression(logicalExp.left.*, env);
+        const right = try self.evalExpression(logicalExp.right.*, env);
+        const operator = logicalExp.operator;
+
+        if (left != .Bool or right != .Bool) {
+            return Error.InvalidOperandTypes;
+        }
+
+        return switch (operator.type) {
+            .LogicalOr => EvalResult{ .Bool = left.Bool or right.Bool },
+            .LogicalAnd => EvalResult{ .Bool = left.Bool and right.Bool },
+            else => {
                 unreachable;
             },
         };
@@ -541,6 +555,7 @@ pub const Eva = struct {
         return switch (literal) {
             .NumericLiteral => |numericLiteral| EvalResult{ .Number = numericLiteral.value },
             .StringLiteral => |stringLiteral| EvalResult{ .String = stringLiteral.value },
+            .BooleanLiteral => |boolLiteral| EvalResult{ .Bool = boolLiteral.value },
             else => {
                 unreachable;
             },

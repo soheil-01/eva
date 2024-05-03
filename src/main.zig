@@ -9,7 +9,7 @@ pub fn main() !void {
 
     var parser = Parser.init(allocator);
     const ast = try parser.parse(
-        \\ -2;
+        \\ (false || true) && true;
     );
 
     var eva = try Eva.init(allocator);
