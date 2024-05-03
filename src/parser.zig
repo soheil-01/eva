@@ -785,7 +785,7 @@ pub const Parser = struct {
         return LambdaExpression{ .params = params, .body = body };
     }
 
-    const Import = struct {
+    pub const Import = struct {
         name: StringLiteral,
     };
 

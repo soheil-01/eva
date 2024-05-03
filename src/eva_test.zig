@@ -245,3 +245,10 @@ test "Class" {
 test "Logical" {
     try testEvaluationOutput("5 > 3 && 4 < 3 || 5 > 2;", "true");
 }
+
+test "Import" {
+    try testEvaluationOutput(
+        \\ let Math = import("math");
+        \\ Math.abs(-10);
+    , "10");
+}

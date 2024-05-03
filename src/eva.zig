@@ -14,7 +14,7 @@ pub const Eva = struct {
         return Eva{ .allocator = allocator, .global = global };
     }
 
-    pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error;
+    pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error || std.fmt.AllocPrintError || std.fs.File.OpenError || std.fs.File.GetSeekPosError || std.fs.File.ReadError || Parser.Error;
 
     const NativeFunction = union(enum) {
         Print,
@@ -119,7 +119,19 @@ pub const Eva = struct {
             .ReturnStatement => |returnStmt| self.evalReturnStatement(returnStmt, env),
             .SwitchStatement => |switchStmt| self.evalSwitchStatement(switchStmt, env),
             .ClassDeclaration => |classDeclaration| self.evalClassDeclaration(classDeclaration, env),
+            .ModuleDeclaration => |moduleDeclaration| self.evalModuleDeclaration(moduleDeclaration, env),
         };
+    }
+
+    fn evalModuleDeclaration(self: *Eva, moduleDeclaration: Parser.ModuleDeclaration, env: *Environment) Error!EvalResult {
+        const moduleEnv = try self.allocator.create(Environment);
+        moduleEnv.* = Environment.init(self.allocator, env);
+
+        _ = try self.evalBlockStatement(moduleDeclaration.body, moduleEnv, false);
+
+        try env.define(moduleDeclaration.name.name, EvalResult{ .Env = moduleEnv });
+
+        return EvalResult{ .Env = moduleEnv };
     }
 
     fn evalClassDeclaration(self: *Eva, classDeclaration: Parser.ClassDeclaration, env: *Environment) Error!EvalResult {
@@ -293,7 +305,26 @@ pub const Eva = struct {
             .MemberExpression => |memberExp| self.evalMemberExpression(memberExp, env),
             .Super => |super| self.evalSuper(super, env),
             .LogicalExpression => |logicalExp| self.evalLogicalExpression(logicalExp, env),
+            .Import => |import| self.evalImport(import),
         };
+    }
+
+    fn evalImport(self: *Eva, import: Parser.Import) Error!EvalResult {
+        const fileName = try std.fmt.allocPrint(self.allocator, "src/modules/{s}.eva", .{import.name.value});
+
+        const file = try std.fs.cwd().openFile(fileName, .{});
+        defer file.close();
+
+        const fileSize = try file.getEndPos();
+        const codes = try self.allocator.alloc(u8, fileSize);
+        _ = try file.read(codes);
+
+        var parser = Parser.init(self.allocator);
+        const program = try parser.parse(codes);
+
+        const moduleDeclaration = Parser.ModuleDeclaration{ .name = Parser.Identifier{ .name = import.name.value }, .body = Parser.BlockStatement{ .body = program.body } };
+
+        return self.evalModuleDeclaration(moduleDeclaration, &self.global);
     }
 
     fn evalLogicalExpression(self: *Eva, logicalExp: Parser.LogicalExpression, env: *Environment) Error!EvalResult {
