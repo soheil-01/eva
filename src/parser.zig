@@ -2,13 +2,24 @@ const std = @import("std");
 const Tokenizer = @import("./tokenizer.zig").Tokenizer;
 
 pub const Parser = struct {
+    arena: *std.heap.ArenaAllocator,
     allocator: std.mem.Allocator,
     string: []const u8 = "",
     tokenizer: Tokenizer = undefined,
     lookahead: ?Tokenizer.Token = null,
 
-    pub fn init(allocator: std.mem.Allocator) Parser {
-        return Parser{ .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator) !Parser {
+        var arena = try allocator.create(std.heap.ArenaAllocator);
+        arena.* = std.heap.ArenaAllocator.init(allocator);
+        const aa = arena.allocator();
+
+        return Parser{ .arena = arena, .allocator = aa };
+    }
+
+    pub fn deinit(self: *Parser) void {
+        const allocator = self.arena.child_allocator;
+        self.arena.deinit();
+        allocator.destroy(self.arena);
     }
 
     const SwitchError = error{MultipleDefaultCasesFound};

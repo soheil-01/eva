@@ -1,13 +1,15 @@
 const std = @import("std");
 const Parser = @import("parser.zig").Parser;
 
-// TODO: Using std.testing.allocator would cause a memory leak
-const allocator = std.heap.page_allocator;
+const allocator = std.testing.allocator;
 
 fn testParserOutput(program: []const u8, expected: []const u8) !void {
-    var parser = Parser.init(allocator);
+    var parser = try Parser.init(allocator);
+    defer parser.deinit();
+
     const ast = try parser.parse(program);
     const string = try std.json.stringifyAlloc(allocator, ast, .{});
+    defer allocator.free(string);
     try std.testing.expectEqualStrings(expected, string);
 }
 

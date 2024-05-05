@@ -2,17 +2,22 @@ const std = @import("std");
 const Parser = @import("parser.zig").Parser;
 const Eva = @import("eva.zig").Eva;
 
-// TODO: Using std.testing.allocator would cause a memory leak
-const allocator = std.heap.page_allocator;
+const allocator = std.testing.allocator;
 
 fn testEvaluationOutput(program: []const u8, expected: []const u8) !void {
-    var parser = Parser.init(allocator);
+    var parser = try Parser.init(allocator);
+    defer parser.deinit();
+
     const ast = try parser.parse(program);
 
     var eva = try Eva.init(allocator);
-    const result = try eva.evalProgram(ast);
+    defer eva.deinit();
 
-    try std.testing.expectEqualStrings(expected, try result.toString(allocator));
+    const result = try eva.evalProgram(ast);
+    const string = try result.toString(allocator);
+    defer allocator.free(string);
+
+    try std.testing.expectEqualStrings(expected, string);
 }
 
 test "Math" {

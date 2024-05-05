@@ -3,15 +3,26 @@ const Parser = @import("parser.zig").Parser;
 const Environment = @import("environment.zig").Environment;
 
 pub const Eva = struct {
+    arena: *std.heap.ArenaAllocator,
     allocator: std.mem.Allocator,
     global: Environment,
 
     pub fn init(allocator: std.mem.Allocator) !Eva {
-        var global = Environment.init(allocator, null);
+        var arena = try allocator.create(std.heap.ArenaAllocator);
+        arena.* = std.heap.ArenaAllocator.init(allocator);
+        const aa = arena.allocator();
+
+        var global = Environment.init(aa, null);
         _ = try global.define("VERSION", EvalResult{ .String = "0.0.1" });
         _ = try global.define("print", EvalResult{ .Function = .{ .Native = .{ .Print = {} } } });
 
-        return Eva{ .allocator = allocator, .global = global };
+        return Eva{ .arena = arena, .allocator = aa, .global = global };
+    }
+
+    pub fn deinit(self: *Eva) void {
+        const allocator = self.arena.child_allocator;
+        self.arena.deinit();
+        allocator.destroy(self.arena);
     }
 
     pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error || std.fmt.AllocPrintError || std.fs.File.OpenError || std.fs.File.GetSeekPosError || std.fs.File.ReadError || Parser.Error;
@@ -70,7 +81,9 @@ pub const Eva = struct {
         }
 
         pub fn display(self: EvalResult, allocator: std.mem.Allocator) !void {
-            std.debug.print("{s}\n", .{try self.toString(allocator)});
+            const string = try self.toString(allocator);
+            defer allocator.free(string);
+            std.debug.print("{s}\n", .{string});
         }
 
         pub fn eql(self: EvalResult, other: EvalResult) !bool {
@@ -319,7 +332,9 @@ pub const Eva = struct {
         const codes = try self.allocator.alloc(u8, fileSize);
         _ = try file.read(codes);
 
-        var parser = Parser.init(self.allocator);
+        var parser = try Parser.init(self.allocator);
+        defer parser.deinit();
+
         const program = try parser.parse(codes);
 
         const moduleDeclaration = Parser.ModuleDeclaration{ .name = Parser.Identifier{ .name = import.name.value }, .body = Parser.BlockStatement{ .body = program.body } };
