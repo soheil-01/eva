@@ -15,8 +15,9 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const opts = .{ .target = target, .optimize = optimize };
-    const regex_mod = b.dependency("regex", opts).module("regex");
+    const lib = b.addStaticLibrary(.{ .name = "regex_slim", .optimize = .Debug, .target = target });
+    lib.addCSourceFiles(.{ .files = &.{"lib/regex_slim.c"}, .flags = &.{"-std=c99"} });
+    lib.linkLibC();
 
     const exe = b.addExecutable(.{
         .name = "eva",
@@ -24,7 +25,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("regex", regex_mod);
+    exe.linkLibrary(lib);
+    exe.addIncludePath(b.path("lib"));
+    exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -61,7 +64,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tests.root_module.addImport("regex", regex_mod);
+    tests.linkLibrary(lib);
+    tests.addIncludePath(b.path("lib"));
+    tests.linkLibC();
 
     const run_tests = b.addRunArtifact(tests);
 

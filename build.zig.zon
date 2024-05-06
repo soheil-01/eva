@@ -1,11 +1,6 @@
 .{
-    .name = "zig-rdp",
-    .version = "0.0.2",
-    .dependencies = .{
-        .regex = .{
-            .url = "git+https://github.com/tiehuis/zig-regex#master",
-            .hash = "122090c3c6b4a8745fb22e721ae4e2e55b73347769696fd84170c660fe16c1f062e6",
-        },
-    },
-    .paths = .{ "src", "build.zig" },
+    .name = "eva",
+    .version = "0.0.3",
+    .dependencies = .{},
+    .paths = .{""},
 }

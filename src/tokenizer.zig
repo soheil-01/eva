@@ -1,13 +1,12 @@
 const std = @import("std");
-const Regex = @import("regex").Regex;
+const Regex = @import("regex.zig").Regex;
 
 pub const Tokenizer = struct {
     allocator: std.mem.Allocator,
     string: []const u8,
     cursor: usize,
 
-    const MatchError = error{ RegexCompileError, RegexCapturesError };
-    pub const Error = error{UnexpectedToken} || MatchError;
+    pub const Error = error{UnexpectedToken} || Regex.Error;
 
     pub const TokenType = enum { Number, String, SemiColon, OpenBrace, CloseBrace, OpenPran, ClosePran, AdditiveOperator, MultiplicativeOperator, RelationalOperator, EqualityOperator, Identifier, SimpleAssign, ComplexAssign, Let, Comma, If, Else, True, False, Null, Module, Import, LogicalAnd, LogicalOr, LogicalNot, While, Do, For, Def, Return, Dot, OpenBracket, CloseBracket, Class, Extends, Super, New, This, Lambda, Switch, Case, Default };
     pub const Token = struct { type: TokenType, value: []const u8 };
@@ -42,14 +41,13 @@ pub const Tokenizer = struct {
         return Error.UnexpectedToken;
     }
 
-    fn match(self: *Tokenizer, re: []const u8, string: []const u8) MatchError!?[]const u8 {
-        var regex = Regex.compile(self.allocator, re) catch return MatchError.RegexCompileError;
+    fn match(self: *Tokenizer, re: []const u8, string: []const u8) Regex.Error!?[]const u8 {
+        const regex = try Regex.init(re);
+        defer regex.deinit();
 
-        if (regex.captures(string) catch return MatchError.RegexCapturesError) |captures| {
-            if (captures.sliceAt(0)) |matched| {
-                self.cursor += matched.len;
-                return matched;
-            }
+        if (try regex.exec(string)) |matched| {
+            self.cursor += matched.len;
+            return matched;
         }
 
         return null;
