@@ -9,7 +9,7 @@ pub const Regex = struct {
 
     pub const Error = error{ RegexCompileError, RegexCapturesError };
 
-    pub fn init(pattern: []const u8) !Regex {
+    pub fn init(pattern: [:0]const u8) !Regex {
         const inner = c.alloc_regex_t().?;
         if (c.regcomp(inner, pattern, c.REG_NEWLINE | c.REG_EXTENDED) != 0) {
             return Error.RegexCompileError;
@@ -28,7 +28,7 @@ pub const Regex = struct {
         return c.regexec(self.inner, input, match_size, &pmatch, 0) == 0;
     }
 
-    pub fn exec(self: Regex, input: [:0]const u8) !?[:0]const u8 {
+    pub fn exec(self: Regex, input: [:0]const u8) !?[]const u8 {
         const match_size = 1;
         var pmatch: [match_size]c.regmatch_t = undefined;
 
