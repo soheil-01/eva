@@ -25,21 +25,23 @@ pub const Eva = struct {
         allocator.destroy(self.arena);
     }
 
-    pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error || std.fmt.AllocPrintError || std.fs.File.OpenError || std.fs.File.GetSeekPosError || std.fs.File.ReadError || Parser.Error;
+    pub const Error = error{ InvalidOperandTypes, ClassNotAnEnvironment, ConstructorNotFound, ComputedPropertyAccessNotSupported, InvalidObject } || Environment.Error || std.mem.Allocator.Error || std.fmt.AllocPrintError || std.fs.File.OpenError || std.fs.File.GetSeekPosError || std.fs.File.ReadError || Parser.Error || std.io.AnyWriter.Error;
 
     const NativeFunction = union(enum) {
         Print,
 
         fn call(self: NativeFunction, args: []EvalResult, allocator: std.mem.Allocator) !EvalResult {
+            const stdout = std.io.getStdOut().writer();
+
             switch (self) {
                 .Print => {
                     for (args, 0..) |arg, i| {
-                        std.debug.print("{s}", .{try arg.toString(allocator)});
+                        try stdout.print("{s}", .{try arg.toString(allocator)});
                         if (i < args.len - 1) {
-                            std.debug.print(" ", .{});
+                            try stdout.print(" ", .{});
                         }
                     }
-                    std.debug.print("\n", .{});
+                    try stdout.print("\n", .{});
 
                     return EvalResult{ .Null = {} };
                 },
@@ -81,9 +83,11 @@ pub const Eva = struct {
         }
 
         pub fn display(self: EvalResult, allocator: std.mem.Allocator) !void {
+            const stdout = std.io.getStdOut().writer();
+
             const string = try self.toString(allocator);
             defer allocator.free(string);
-            std.debug.print("{s}\n", .{string});
+            try stdout.print("{s}\n", .{string});
         }
 
         pub fn eql(self: EvalResult, other: EvalResult) !bool {
